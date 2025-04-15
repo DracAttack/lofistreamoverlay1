@@ -303,14 +303,8 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
                   </div>
                 )}
               </>
-            ) : isBackground ? (
-              // Empty background layer
-              <div 
-                className="w-full h-full"
-                style={{ backgroundColor: layer.style.backgroundColor || '#111' }}
-              />
-            ) : (
-              // Empty regular layer
+            ) : layer.name ? (
+              // Layer with name but no content source
               <div 
                 className="w-full h-full flex items-center justify-center"
                 style={{
@@ -324,6 +318,12 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
                   {layer.name}
                 </p>
               </div>
+            ) : (
+              // Empty layer with no name or content
+              <div 
+                className="w-full h-full"
+                style={{ backgroundColor: layer.style.backgroundColor || '#111' }}
+              />
             )}
           </div>
         );
