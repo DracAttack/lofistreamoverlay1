@@ -285,11 +285,23 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
         // IMPORTANT: For Stream Output, we ALWAYS use percentage values
         // converted to absolute pixels at 1920x1080 resolution
         
-        // Check if this layer should be in fullscreen mode
-        const isFullscreen = layer.content?.isFullscreen === true;
+        // Check if this layer should be in fullscreen mode - multiple ways to check
+        // IMPORTANT: This is Layer 1, the background video, and needs special handling
+        const isBackgroundLayer = layer.id === 1;
+        const hasFullscreenFlag = layer.content?.isFullscreen === true;
+        const isFullscreen = isBackgroundLayer || hasFullscreenFlag;
         
-        // For debugging - log layer details, especially for Layer 1
-        if (layer.id === 1) {
+        // Debug only Layer 1 to minimize log spam
+        if (isBackgroundLayer) {
+          console.log(`BACKGROUND LAYER ${layer.id} settings:`, { 
+            isBackgroundLayer,
+            hasFullscreenFlag,
+            isFullscreen,
+            content: layer.content,
+            source: layer.content?.source
+          });
+          
+          // More detailed debugging for Layer 1
           console.log('Layer 1 rendering details:', { 
             name: layer.name, 
             source: layer.content?.source,

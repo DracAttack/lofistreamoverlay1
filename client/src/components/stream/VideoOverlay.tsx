@@ -81,12 +81,55 @@ export function VideoOverlay({
   // This would cause problems in OBS/SLOBS where the browser source is always active
   // but the tab may not be focused, leading to paused videos when the tab is inactive
   
+  // Check if this is the background video (Layer 1)
+  const isBackground = useRef(false);
+  
+  // Check once when component mounts
+  useEffect(() => {
+    // Wait for DOM to be ready before checking size
+    setTimeout(() => {
+      const bgCheck = () => {
+        if (!videoRef.current) return false;
+        
+        // A background video typically has a parent with position absolute
+        // and dimensions that fill most of the viewport
+        const container = videoRef.current.closest('.absolute');
+        if (!container) return false;
+        
+        const rect = container.getBoundingClientRect();
+        const viewWidth = window.innerWidth;
+        const viewHeight = window.innerHeight;
+        
+        // If element takes up more than 90% of viewport, it's likely the background
+        const isFull = (rect.width > viewWidth * 0.9) && (rect.height > viewHeight * 0.9);
+        
+        return isFull;
+      };
+      
+      // Set the background flag
+      isBackground.current = bgCheck();
+      
+      // Force always visible for background videos
+      if (isBackground.current) {
+        console.log("BACKGROUND VIDEO DETECTED - forcing permanent visibility");
+        setIsVisible(true);
+      }
+    }, 500);
+  }, []);
+  
   // Cleaner scheduling implementation
   useEffect(() => {
     // Skip scheduling in preview mode
     if (preview || !source || !schedule.enabled) {
       // If in preview mode, make sure visibility matches expectations
       setIsVisible(preview || !schedule.autoHide);
+      return;
+    }
+    
+    // CRITICAL: Never apply scheduling to background videos
+    if (isBackground.current) {
+      console.log("Background video detected - skipping scheduling");
+      setIsVisible(true);
       return;
     }
     
@@ -126,13 +169,17 @@ export function VideoOverlay({
       }
       
       // If autoHide is enabled, schedule the hide operation
-      if (schedule.autoHide) {
+      // Skip for background videos
+      if (schedule.autoHide && !isBackground.current) {
         const duration = schedule.duration || 5;
         console.log(`VideoOverlay: Will hide after ${duration} seconds`);
         
         setTimeout(() => {
-          console.log(`VideoOverlay: Hiding after duration`);
-          setIsVisible(false);
+          // Don't hide background videos
+          if (!isBackground.current) {
+            console.log(`VideoOverlay: Hiding after duration`);
+            setIsVisible(false);
+          }
         }, duration * 1000);
       }
     };
@@ -151,8 +198,23 @@ export function VideoOverlay({
   
   // Handle video end based on loop setting and scheduling
   const handleVideoEnded = () => {
-    // For non-looping videos, we might need to hide
-    if (!loop && schedule.autoHide && !preview && schedule.enabled) {
+    // CRITICAL: Background videos should always loop regardless of settings
+    if (isBackground.current && videoRef.current) {
+      // Force reload and restart of background video
+      console.log("Background video ended - forcing restart");
+      videoRef.current.load();
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.play().catch(err => {
+            console.error("Failed to restart background video:", err);
+          });
+        }
+      }, 50);
+      return;
+    }
+    
+    // For non-looping videos, we might need to hide (but not backgrounds)
+    if (!loop && schedule.autoHide && !preview && schedule.enabled && !isBackground.current) {
       console.log("VideoOverlay: Non-looping video ended, hiding overlay");
       setIsVisible(false);
     }
@@ -185,8 +247,31 @@ export function VideoOverlay({
     }
   };
   
-  // Don't render anything if not visible and not in preview mode
-  if (!isVisible && !preview) {
+  // CRITICAL FIX: Don't hide the background layer (Layer 1)
+  // We need to check if this is a fullscreen background video before hiding it
+  // This is determined by checking the parent container dimensions
+  
+  const isBackgroundLayer = () => {
+    // Check if this video has fullscreen parent container (Layer 1)
+    if (!videoRef.current) return false;
+    
+    const container = videoRef.current.parentElement;
+    if (!container) return false;
+    
+    // Fullscreen background would be nearly the same size as viewport
+    const rect = container.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // If more than 90% of viewport, it's likely the background
+    const isFullWidth = rect.width > viewportWidth * 0.9;
+    const isFullHeight = rect.height > viewportHeight * 0.9;
+    
+    return isFullWidth && isFullHeight;
+  };
+  
+  // Only hide if not a background layer, not visible and not in preview mode
+  if (!isVisible && !preview && !isBackgroundLayer()) {
     return null;
   }
   
