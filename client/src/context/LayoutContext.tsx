@@ -143,24 +143,20 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
         }
       };
 
-      // Update local state immediately
+      // Update local state immediately for responsive UI
       setLayers(prevLayers => 
         prevLayers.map(layer => layer.id === layerId ? updatedLayer : layer)
       );
 
-      // Send update to server for the individual layer only
-      // This prevents a race condition with the active layout sync
+      // SIMPLIFIED: Only use active layout sync to avoid race conditions
+      // This keeps positions in sync across all views through a single source of truth
       try {
-        await apiRequest('PUT', `/api/layers/${layerId}`, { 
-          position: updatedLayer.position 
-        });
-      
-        // Wait for the first request to complete before syncing to avoid conflicts
-        // Get the latest layers state for the sync
+        // Get fresh copy of layers with the updated layer
         const currentLayers = layers.map(layer => 
           layer.id === layerId ? updatedLayer : layer
         );
         
+        // Single API call to update all layers
         await apiRequest('POST', '/api/active-layout/sync', {
           layers: currentLayers
         });
