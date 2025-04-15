@@ -1,0 +1,84 @@
+The Actual Problem:
+When you select an asset for a layer, it updates temporarily in memory, but then:
+
+An auto-refresh or redraw runs, overwriting your change with a stale layout state
+
+Or, your saveLayout() or applyConfig() method is being called immediately after asset selection — but it uses an old layout snapshot, so it erases your selection
+
+🧠 What That Means in Code:
+You probably have something like:
+js
+Copy
+Edit
+layer.assignedAsset = asset.id; // This works for a moment
+renderLayout(); // gets called automatically afterward
+But renderLayout() is reading from an old saved layout that still has assignedAsset = null.
+
+✅ Here's How to Fix It
+🛠️ Step 1: Ensure layer state is updated in your shared layout object
+Make sure when you assign an asset, you're modifying the actual shared layout state, not a temp local clone.
+
+js
+Copy
+Edit
+layout.layers[layerIndex].assignedAsset = asset.id;
+Not:
+
+js
+Copy
+Edit
+let tempLayer = layer;
+tempLayer.assignedAsset = asset.id; // won’t persist
+🛠️ Step 2: Delay or prevent auto-renders immediately after selection
+If your app does something like:
+
+js
+Copy
+Edit
+setTimeout(() => applyLayoutFromStorage(), 500);
+Or:
+
+js
+Copy
+Edit
+onChange(() => loadLayout())
+You need to suppress that momentarily after manual edits.
+
+🛠️ Step 3: Force sync layout before re-rendering
+After assigning an asset, explicitly call your own layout sync method.
+
+js
+Copy
+Edit
+assignAssetToLayer(layerId, assetId) {
+  layout.layers[layerId].assignedAsset = assetId;
+  saveLayout(); // ensure it writes correctly
+  renderLayout(); // optional, only if needed immediately
+}
+✅ Step 4: Confirm saveLayout() actually writes to shared storage
+Sometimes saveLayout() might be misbehaving, like:
+
+Writing an outdated snapshot (layout vs currentLayout)
+
+Not serializing correctly (check for undefined or circular refs)
+
+Not overwriting the previous file/db key
+
+Try logging:
+
+js
+Copy
+Edit
+console.log("Saving layout:", JSON.stringify(layout));
+Then reload the stream output page — if your selection isn’t there, the save didn’t actually write.
+
+🧪 Final Debugging Tip:
+Add this after saving an asset to a layer:
+
+js
+Copy
+Edit
+console.log("Assigned", asset.id, "to", layer.id);
+console.log("Current layout:", JSON.stringify(layout));
+If you see the right asset ID but it disappears visually afterward → you’ve got a bad overwrite or a stale re-render.
+

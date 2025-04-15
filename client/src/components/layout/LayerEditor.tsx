@@ -7,6 +7,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Quote } from "@/lib/types";
 import { AssetSelector } from "./AssetSelector";
 
+// This is our direct reference to the currently selected asset path
+// We use a module-level variable that persists across component renders
+let currentSelectedAssetPath = "";
+
 export function LayerEditor() {
   const { selectedLayer, setLayers, layers } = useLayoutContext();
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -59,10 +63,14 @@ export function LayerEditor() {
       });
       setZIndex(selectedLayer.zIndex || 10);
       
-      // Explicitly handle the source properly
+      // Explicitly handle the source, updating both state and direct reference
       const currentSource = selectedLayer.content?.source || "";
       console.log("LayerEditor - Setting sourceOption from layer:", currentSource);
       setSourceOption(currentSource);
+      
+      // Update our direct reference variable too
+      currentSelectedAssetPath = currentSource;
+      console.log("LayerEditor - Direct reference initialized to:", currentSelectedAssetPath);
       
       setRotationInterval(selectedLayer.content?.rotationInterval || 30);
       
@@ -114,11 +122,16 @@ export function LayerEditor() {
     if (!selectedLayer) return;
 
     // Debug the asset selection for troubleshooting
-    console.log("LayerEditor - Save - Current sourceOption:", sourceOption);
+    console.log("LayerEditor - Save - Current sourceOption state:", sourceOption);
+    console.log("LayerEditor - Save - Current direct reference:", currentSelectedAssetPath);
     console.log("LayerEditor - Save - selectedLayer content:", selectedLayer.content);
     
     try {
-      // Create the updated layer with current state values
+      // Get the most accurate source path - prefer direct reference over state
+      const finalSourcePath = currentSelectedAssetPath || sourceOption;
+      console.log("LayerEditor - Save - Using source path:", finalSourcePath);
+      
+      // Create the updated layer with current values
       const updatedLayer = {
         ...selectedLayer,
         position: {
@@ -134,7 +147,7 @@ export function LayerEditor() {
         },
         content: {
           ...selectedLayer.content,
-          source: sourceOption, // Using the current sourceOption value
+          source: finalSourcePath, // Using our direct reference
           rotationInterval,
           timerEnabled,
           timerDuration,
@@ -334,12 +347,14 @@ export function LayerEditor() {
           selectedAsset={sourceOption}
           onAssetSelect={(assetPath) => {
             console.log("LayerEditor - Asset selected:", assetPath);
-            // Important: This needs to be handled properly
+            
+            // Update both the React state and our direct reference
             setSourceOption(assetPath);
             
-            // Since state updates are asynchronous, we need to use the current value
-            // when we save the layer rather than relying on the state variable
-            console.log("LayerEditor - Will use source for future save:", assetPath);
+            // This is the key fix - we directly set the variable that will be used in handleSave
+            currentSelectedAssetPath = assetPath;
+            
+            console.log("LayerEditor - Direct reference updated to:", currentSelectedAssetPath);
           }}
         />
       </div>
