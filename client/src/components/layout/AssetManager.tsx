@@ -135,7 +135,7 @@ export function AssetManager() {
           activeTab === "image" ? "image/*" :
           "text/*,.json"
         }
-        maxSize={activeTab === "text" ? 1024 * 1024 : 50 * 1024 * 1024} // 1MB for text, 50MB for others
+        maxSize={activeTab === "text" ? 5 * 1024 * 1024 : 100 * 1024 * 1024} // 5MB for text, 100MB for others
         onUploadComplete={handleAssetUploadComplete}
         fileType={activeTab}
       />

@@ -14,7 +14,7 @@ interface FileUploadProps {
 export function FileUpload({
   className,
   accept = "*/*",
-  maxSize = 50 * 1024 * 1024, // 50MB default
+  maxSize = 100 * 1024 * 1024, // 100MB default
   onUploadComplete,
   fileType
 }: FileUploadProps) {
@@ -49,7 +49,8 @@ export function FileUpload({
         try {
           const arrayBuffer = event.target?.result as ArrayBuffer;
           
-          const response = await apiRequest("POST", "/api/upload", undefined, {
+          // Use fetch directly for binary data
+          const response = await fetch("/api/upload", {
             method: "POST",
             headers: {
               "Content-Type": file.type,
@@ -113,25 +114,25 @@ export function FileUpload({
         return {
           icon: "ri-movie-line",
           text: "video files",
-          supportText: "Support: MP4, WebM (max 50MB)"
+          supportText: "Support: MP4, WebM (max 100MB)"
         };
       case "audio":
         return {
           icon: "ri-music-line",
           text: "audio files",
-          supportText: "Support: MP3, WAV (max 50MB)"
+          supportText: "Support: MP3, WAV (max 100MB)"
         };
       case "image":
         return {
           icon: "ri-image-line",
           text: "image files",
-          supportText: "Support: JPG, PNG, SVG (max 10MB)"
+          supportText: "Support: JPG, PNG, SVG (max 100MB)"
         };
       case "text":
         return {
           icon: "ri-file-text-line",
           text: "text files",
-          supportText: "Support: TXT, JSON (max 1MB)"
+          supportText: "Support: TXT, JSON (max 5MB)"
         };
     }
   };
