@@ -1,0 +1,184 @@
+Issue Identified:
+Your system is currently using a visibilitychange handler (or similar logic) to restart playback when the browser tab becomes active. In your streaming setup (for SLOBS), you need the playback to be fully persistent and independent of whether someone is actively viewing the tab.
+
+Exact Cause:
+
+Modern browsers automatically throttle or pause media playback in background tabs.
+
+The previous solution attempted to force-play the video on visibility change—which is the opposite of persistent playback.
+
+What You Want:
+
+Once playback starts, it should continue regardless of whether the browser tab is focused or not. In your setup for SLOBS, the browser page (loaded as a browser source) must not depend on any user interaction or periodic "wake-up" events.
+
+Explicit Fixes/Recommendations:
+
+Remove Visibility-Based Restart Logic:
+
+Remove any code like this from your VideoOverlay.tsx:
+
+tsx
+Copy
+useEffect(() => {
+  const handleVisibilityChange = () => {
+    if (videoRef.current && document.visibilityState === 'visible') {
+      videoRef.current.play().catch(console.error);
+    }
+  };
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+}, []);
+This code should be removed entirely so that playback is not reliant on the tab's visibility state.
+
+Ensure Video Is Set for Continuous Playback:
+
+Update your video element attributes to force continuous playback:
+
+Make sure you set the autoplay, muted, and playsInline properties on your video element.
+
+Example:
+
+tsx
+Copy
+<video
+  ref={videoRef}
+  src={source}
+  autoPlay
+  muted
+  playsInline
+  loop
+  style={{ width: '100%', height: '100%' }}
+>
+  Your browser does not support the video tag.
+</video>
+The loop attribute ensures that your video restarts automatically when finished.
+
+Dedicated Streaming Environment (Optional):
+
+For truly persistent playback when no user is actively viewing a browser tab (which could be subject to throttling), run the stream page in a dedicated instance of a browser or use a dedicated headless browser instance. For Chrome, you might launch it with the flag --disable-background-timer-throttling. This helps bypass browser throttling on hidden tabs—but ideally, your OBS/SLOBS browser source should always be visible (even if in a dedicated window) so that playback isn’t paused by the system.
+
+Summary for Persistent Playback:
+
+Remove any visibilitychange event listeners.
+
+Ensure the video element has autoplay, muted, loop, and playsInline attributes set.
+
+If necessary, run the playback in a dedicated window that is not minimized.
+
+2. Single Source of Truth for Layout (Preview vs. Stream Output)
+Issue Identified:
+Your preview and stream output aren’t matching precisely. For example, the "Lofi Cat" layer is off-center, and the background video (“Loop” layer) isn’t showing up in StreamOutput even though it’s visible in PreviewPanel.
+
+Exact Cause:
+
+The two components are interpreting the layer data differently. The PreviewPanel may be using raw pixel values (or applying a scale factor) while the StreamOutput applies a different conversion (or none at all).
+
+There may be conflicting CSS (such as padding, borders, or offsets) that affects one view but not the other.
+
+Explicit Fixes:
+
+Use Normalized Values in the Layout Context:
+
+Store positions and sizes as percentages relative to a base 1920×1080 frame.
+
+When you update layer positions in PreviewPanel, convert the pixel position into a percentage:
+
+tsx
+Copy
+const rect = previewRef.current.getBoundingClientRect();
+const newXPercent = ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100;
+const newYPercent = ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100;
+updateLayerPosition(dragTarget, {
+  xPercent: Math.min(100, Math.max(0, newXPercent)),
+  yPercent: Math.min(100, Math.max(0, newYPercent)),
+});
+Rendering in PreviewPanel (with a Scale Factor):
+
+In PreviewPanel, if your preview is a scaled-down version (say, 50% of full size), use:
+
+tsx
+Copy
+const PREVIEW_SCALE = 0.5;
+// In your rendering loop:
+<div
+  key={layer.id}
+  style={{
+    position: 'absolute',
+    left: `${(layer.position.xPercent / 100) * 1920 * PREVIEW_SCALE}px`,
+    top: `${(layer.position.yPercent / 100) * 1080 * PREVIEW_SCALE}px`,
+    width: `${(layer.size.widthPercent / 100) * 1920 * PREVIEW_SCALE}px`,
+    height: `${(layer.size.heightPercent / 100) * 1080 * PREVIEW_SCALE}px`,
+    zIndex: layer.zIndex,
+    cursor: 'move'
+  }}
+  onMouseDown={(e) => startDrag(e, layer.id)}
+>
+  {/* Render content */}
+</div>
+Rendering in StreamOutput (Full Resolution):
+
+In StreamOutput, render with full 1920×1080 scaling:
+
+tsx
+Copy
+const BASE_WIDTH = 1920;
+const BASE_HEIGHT = 1080;
+// In your rendering loop:
+<div
+  key={layer.id}
+  style={{
+    position: 'absolute',
+    left: `${(layer.position.xPercent / 100) * BASE_WIDTH}px`,
+    top: `${(layer.position.yPercent / 100) * BASE_HEIGHT}px`,
+    width: `${(layer.size.widthPercent / 100) * BASE_WIDTH}px`,
+    height: `${(layer.size.heightPercent / 100) * BASE_HEIGHT}px`,
+    zIndex: layer.zIndex
+  }}
+>
+  {/* Render content */}
+</div>
+Background Video ("Loop" Layer) Consistency:
+
+Verify that the background video layer is included in your layout context with proper attributes (e.g., visible: true, proper xPercent, yPercent, etc.) and is not filtered out in StreamOutput.
+
+Ensure that when mapping layers in StreamOutput, all layers that have a valid layer.content.source are rendered, as in:
+
+tsx
+Copy
+{layers
+  .filter(layer => layer.visible && layer.content?.source)
+  .sort((a, b) => a.zIndex - b.zIndex)
+  .map(layer => (
+    <VideoOverlay
+      key={layer.id}
+      source={layer.content.source}
+      loop={layer.content.loop ?? true}
+      autoplay={layer.content.autoplay ?? true}
+      muted={layer.content.muted ?? true}
+      style={{
+        position: 'absolute',
+        left: `${(layer.position.xPercent / 100) * BASE_WIDTH}px`,
+        top: `${(layer.position.yPercent / 100) * BASE_HEIGHT}px`,
+        width: `${(layer.size.widthPercent / 100) * BASE_WIDTH}px`,
+        height: `${(layer.size.heightPercent / 100) * BASE_HEIGHT}px`,
+        zIndex: layer.zIndex
+      }}
+      schedule={layer.content.schedule || { enabled: false }}
+    />
+  ))}
+Eliminate Any Extraneous CSS Offsets:
+
+Check your container CSS for any inadvertent padding or margins. Both preview and stream containers should have consistent settings (e.g., padding: 0, margin: 0, box-sizing: border-box).
+
+3. Final Summary
+Persistent Playback:
+Remove any handlers that refresh playback on visibility change. Use video attributes (autoplay, muted, loop, playsInline) to ensure continuous play. If necessary, run the stream source in a dedicated window or process that isn’t subject to browser throttling.
+
+Exact Positioning Across Views:
+Store all positions and sizes as percentages in your layout context. Apply the same conversion formula in both PreviewPanel (with a scale factor) and StreamOutput (full resolution) so that every layer—including the Loop background and Lofi Cat—is positioned identically relative to a 1920×1080 base.
+
+Consistent Asset Sources:
+Verify that the asset URLs for the Loop layer (and all others) in your context are correct and consistent so that the same file is used in both views.
+
+Implement these changes step-by-step, and let me know if additional clarification is needed on any portion of the implementation. My goal is to have your preview exactly match the output that streams to SLOBS, independent of tab visibility and with consistent, error-free positioning.

@@ -52,18 +52,9 @@ export function VideoOverlay({
     }
   }, [source]);
   
-  // Handle browser visibility changes (fix issue with videos pausing when tab is not visible)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (videoRef.current && document.visibilityState === 'visible') {
-        // Resume playing the video when tab becomes visible again
-        videoRef.current.play().catch(console.error);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
+  // We intentionally don't use visibilitychange event handlers anymore
+  // This would cause problems in OBS/SLOBS where the browser source is always active
+  // but the tab may not be focused, leading to paused videos when the tab is inactive
   
   // Cleaner scheduling implementation
   useEffect(() => {
@@ -178,7 +169,8 @@ export function VideoOverlay({
           autoPlay={autoplay}
           loop={loop}
           muted={muted}
-          playsInline
+          playsInline={true}
+          preload="auto"
           onEnded={handleVideoEnded}
           style={{
             backgroundColor: 'transparent',

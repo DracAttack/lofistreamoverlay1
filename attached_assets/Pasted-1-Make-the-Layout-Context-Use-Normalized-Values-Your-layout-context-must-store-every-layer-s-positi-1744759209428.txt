@@ -1,0 +1,196 @@
+1. Make the Layout Context Use Normalized Values
+Your layout context must store every layer’s position and size as percentages relative to a 1920×1080 base. For example, when a drag ends in PreviewPanel, update the context like this:
+
+In your PreviewPanel.tsx (drag handler):
+
+tsx
+Copy
+const handleDrag = (e: React.MouseEvent) => {
+  if (!isDragging || dragTarget === null || !previewRef.current) return;
+  const rect = previewRef.current.getBoundingClientRect();
+  // Convert the drag position into percentage coordinates
+  const newXPercent = ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100;
+  const newYPercent = ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100;
+  updateLayerPosition(dragTarget, {
+    xPercent: Math.min(100, Math.max(0, newXPercent)),
+    yPercent: Math.min(100, Math.max(0, newYPercent)),
+  });
+};
+Make sure your context and updateLayerPosition function are modified accordingly so that all layer positions and sizes are stored as xPercent, yPercent, widthPercent, and heightPercent.
+
+2. Render Layers Consistently in Both Views
+a. In PreviewPanel.tsx
+If your preview is a scaled–down version (for example, at 50% of full 1080p), render using your normalized values multiplied by a constant preview scale.
+
+Modify your layer rendering like this:
+
+tsx
+Copy
+const PREVIEW_SCALE = 0.5; // For a compressed preview view
+
+// In your rendering loop inside PreviewPanel.tsx:
+{layers
+  .filter(layer => layer.visible)
+  .sort((a, b) => a.zIndex - b.zIndex)
+  .map(layer => (
+    <div
+      key={layer.id}
+      style={{
+        position: 'absolute',
+        left: `${(layer.position.xPercent / 100) * 1920 * PREVIEW_SCALE}px`,
+        top: `${(layer.position.yPercent / 100) * 1080 * PREVIEW_SCALE}px`,
+        width: `${(layer.size.widthPercent / 100) * 1920 * PREVIEW_SCALE}px`,
+        height: `${(layer.size.heightPercent / 100) * 1080 * PREVIEW_SCALE}px`,
+        zIndex: layer.zIndex,
+        cursor: 'move'
+      }}
+      onMouseDown={(e) => startDrag(e, layer.id)}
+    >
+      {/* Render your layer content here */}
+    </div>
+  ))
+}
+b. In StreamOutput.tsx
+For full 1080p output (the “single truth”), use:
+
+tsx
+Copy
+const BASE_WIDTH = 1920;
+const BASE_HEIGHT = 1080;
+
+return (
+  <div
+    ref={containerRef}
+    style={{
+      width: `${BASE_WIDTH}px`,
+      height: `${BASE_HEIGHT}px`,
+      position: 'relative',
+      overflow: 'hidden'
+    }}
+  >
+    {layers
+      .filter(layer => layer.visible && layer.content?.source) // ensure every layer with a source is rendered
+      .sort((a, b) => a.zIndex - b.zIndex)
+      .map(layer => (
+        <VideoOverlay
+          key={layer.id}
+          source={layer.content.source}
+          loop={layer.content.loop ?? true}
+          autoplay={layer.content.autoplay ?? true}
+          muted={layer.content.muted ?? true}
+          style={{
+            position: 'absolute',
+            left: `${(layer.position.xPercent / 100) * BASE_WIDTH}px`,
+            top: `${(layer.position.yPercent / 100) * BASE_HEIGHT}px`,
+            width: `${(layer.size.widthPercent / 100) * BASE_WIDTH}px`,
+            height: `${(layer.size.heightPercent / 100) * BASE_HEIGHT}px`,
+            zIndex: layer.zIndex
+          }}
+          schedule={layer.content.schedule || { enabled: false }}
+        />
+      ))}
+  </div>
+);
+This ensures that the positioning, size, and ordering are identical in both the preview and stream output.
+
+3. Modify VideoOverlay.tsx for Persistent Playback
+a. Remove any code that depends on tab visibility
+Delete or comment out any listener for document.visibilitychange.
+
+For example, remove code like this entirely:
+
+tsx
+Copy
+useEffect(() => {
+  const handleVisibilityChange = () => {
+    if (videoRef.current && document.visibilityState === 'visible') {
+      videoRef.current.play().catch(console.error);
+    }
+  };
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+}, []);
+b. Set Video Attributes for Continuous, Uninterrupted Playback
+Ensure your video element is written as follows:
+
+tsx
+Copy
+return (
+  <div style={{ ...style, display: isVisible ? 'block' : 'none' }}>
+    <video
+      ref={videoRef}
+      src={source}
+      autoPlay
+      muted
+      playsInline
+      loop  // ensures it restarts automatically
+      style={{ width: '100%', height: '100%' }}
+    >
+      Your browser does not support the video tag.
+    </video>
+  </div>
+);
+c. Use Robust Scheduling for Layers that Have a Schedule
+If you have scheduling (for example, to show the Lofi Cat layer on an interval), ensure you use this exact scheduling code (which does not depend on tab visibility):
+
+tsx
+Copy
+useEffect(() => {
+  if (!schedule.enabled || preview) return;
+
+  let showTimeout: NodeJS.Timeout;
+  const triggerSchedule = () => {
+    setIsVisible(true);
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+      videoRef.current.play().catch(console.error);
+    }
+    showTimeout = setTimeout(() => {
+      setIsVisible(false);
+    }, (schedule.duration || 5) * 1000);
+  };
+
+  triggerSchedule(); // Immediate trigger
+  const interval = setInterval(triggerSchedule, (schedule.interval || 600) * 1000);
+
+  return () => {
+    clearInterval(interval);
+    clearTimeout(showTimeout);
+  };
+}, [schedule.enabled, schedule.interval, schedule.duration, source]);
+This guarantees that the video (or overlay) plays and hides on a fixed schedule regardless of tab focus—perfect for streaming in SLOBS.
+
+4. Check for Consistency and Remove Extraneous CSS
+Ensure that neither container (for preview or stream) has extra padding, margins, or borders that might be offsetting your layout.
+
+In your main CSS, add:
+
+css
+Copy
+html, body, #root, .stream-output, .preview-panel {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+In Summary
+Use normalized (percentage) values in your layout context.
+
+Convert pixel positions to percentages in PreviewPanel on drag/resize.
+
+Apply identical conversion logic in both views.
+
+Preview: Use a scale factor (e.g., 0.5) on a 1920×1080 base.
+
+Stream: Use the 1920×1080 base directly.
+
+Make video playback fully persistent.
+
+Remove any visibility-based restart logic.
+
+Set the video element with autoPlay, muted, playsInline, and loop.
+
+Use a scheduling useEffect (if needed) that does not rely on user interaction.
+
+Remove any extraneous CSS offsets.
+
+Ensure containers have no additional padding/margin.
