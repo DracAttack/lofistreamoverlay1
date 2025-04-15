@@ -388,7 +388,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // File upload handling with Express built-in middleware
-  app.post("/api/upload", express.raw({ limit: "50mb", type: "application/octet-stream" }), async (req: Request, res: Response) => {
+  app.post("/api/upload", express.raw({ limit: "100mb", type: "application/octet-stream" }), async (req: Request, res: Response) => {
     try {
       const contentType = req.headers["content-type"] || "";
       const fileName = req.headers["x-file-name"] as string;
