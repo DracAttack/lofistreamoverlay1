@@ -121,28 +121,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/assets/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const asset = await storage.getAsset(parseInt(id));
+      const assetId = parseInt(id);
+      const asset = await storage.getAsset(assetId);
       
       if (!asset) {
         return res.status(404).json({ message: "Asset not found" });
       }
       
+      console.log(`Deleting asset ID ${assetId}: ${asset.name}`);
+      
       // Delete file from uploads directory
       if (asset.path) {
-        const filePath = path.join(UPLOAD_DIR, path.basename(asset.path));
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
+        try {
+          const filePath = path.join(UPLOAD_DIR, path.basename(asset.path));
+          console.log(`Checking for file at: ${filePath}`);
+          
+          if (fs.existsSync(filePath)) {
+            console.log(`File exists, deleting: ${filePath}`);
+            fs.unlinkSync(filePath);
+          } else {
+            console.log(`File not found: ${filePath}`);
+          }
+        } catch (fileError) {
+          console.error("Error deleting file:", fileError);
+          // Continue with asset deletion even if file deletion fails
         }
       }
       
-      const success = await storage.deleteAsset(parseInt(id));
+      // Delete asset from database
+      const success = await storage.deleteAsset(assetId);
       if (success) {
-        broadcastUpdate("asset_deleted", { id: parseInt(id) });
-        res.json({ success: true });
+        console.log(`Successfully deleted asset ID ${assetId}`);
+        
+        // Find all files in uploads directory with this asset ID
+        try {
+          const files = fs.readdirSync(UPLOAD_DIR);
+          const assetFiles = files.filter(file => file.startsWith(`${assetId}-`));
+          
+          if (assetFiles.length > 0) {
+            console.log(`Found ${assetFiles.length} additional files for asset ID ${assetId}`);
+            assetFiles.forEach(file => {
+              const filePath = path.join(UPLOAD_DIR, file);
+              console.log(`Deleting related file: ${filePath}`);
+              fs.unlinkSync(filePath);
+            });
+          }
+        } catch (cleanupError) {
+          console.error("Error during file cleanup:", cleanupError);
+        }
+        
+        // Notify clients
+        broadcastUpdate("asset_deleted", { id: assetId });
+        res.json({ 
+          success: true,
+          message: "Asset and associated files completely removed" 
+        });
       } else {
-        res.status(404).json({ message: "Asset not found" });
+        res.status(404).json({ message: "Failed to delete asset from database" });
       }
     } catch (error) {
+      console.error("Error deleting asset:", error);
       res.status(500).json({ message: "Failed to delete asset" });
     }
   });
@@ -192,15 +230,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/layers/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const success = await storage.deleteLayer(parseInt(id));
+      const layerId = parseInt(id);
+      
+      // Get the layer first to check if it references any assets
+      const layer = await storage.getLayer(layerId);
+      if (!layer) {
+        return res.status(404).json({ message: "Layer not found" });
+      }
+      
+      console.log(`Deleting layer ID ${layerId}: ${layer.name}`);
+      
+      // Proceed with deletion
+      const success = await storage.deleteLayer(layerId);
       
       if (success) {
-        broadcastUpdate("layer_deleted", { id: parseInt(id) });
-        res.json({ success: true });
+        // Let all connected clients know this layer is gone
+        broadcastUpdate("layer_deleted", { id: layerId });
+        
+        console.log(`Successfully deleted layer ID ${layerId}`);
+        res.json({ 
+          success: true,
+          message: "Layer completely removed from database" 
+        });
       } else {
-        res.status(404).json({ message: "Layer not found" });
+        res.status(404).json({ message: "Layer not found or could not be deleted" });
       }
     } catch (error) {
+      console.error("Error deleting layer:", error);
       res.status(500).json({ message: "Failed to delete layer" });
     }
   });

@@ -97,8 +97,51 @@ export class DatabaseStorage implements IStorage {
   }
   
   async deleteAsset(id: number): Promise<boolean> {
-    const results = await db.delete(assets).where(eq(assets.id, id)).returning({ id: assets.id });
-    return results.length > 0;
+    try {
+      // First, remove the asset reference from any layers using it
+      const allLayers = await this.getLayers();
+      const updatedLayers: Layer[] = [];
+      
+      for (const layer of allLayers) {
+        // Safely check if content exists and has a source property
+        const content = layer.content as Record<string, any> || {};
+        const source = content.source as string || "";
+        
+        if (source && source.includes(`/uploads/${id}-`)) {
+          // Update the layer to remove the reference to this asset
+          const updatedContent = { ...content, source: "" };
+          await this.updateLayer(layer.id, { content: updatedContent });
+          
+          // Push the updated layer with the source removed
+          updatedLayers.push({
+            ...layer,
+            content: updatedContent
+          });
+        } else {
+          updatedLayers.push(layer);
+        }
+      }
+      
+      // Update active layout to reflect these changes
+      await this.updateActiveLayout(updatedLayers);
+      
+      // Then delete the asset itself
+      const results = await db.delete(assets).where(eq(assets.id, id)).returning({ id: assets.id });
+      
+      // Finally reset the auto-increment sequence for assets table so IDs start fresh
+      await db.execute(
+        `SELECT setval(pg_get_serial_sequence('assets', 'id'), 
+          COALESCE((SELECT MAX(id) FROM assets), 0));`
+      );
+      
+      // For consistency, delete any files associated with this asset
+      // (the actual file deletion would be handled by server/routes.ts)
+      
+      return results.length > 0;
+    } catch (error) {
+      console.error("Error deleting asset:", error);
+      return false;
+    }
   }
   
   // Layer methods
@@ -130,13 +173,25 @@ export class DatabaseStorage implements IStorage {
   }
   
   async deleteLayer(id: number): Promise<boolean> {
-    const results = await db.delete(layers).where(eq(layers.id, id)).returning({ id: layers.id });
-    
-    // Update the active layout
-    const allLayers = await this.getLayers();
-    await this.updateActiveLayout(allLayers);
-    
-    return results.length > 0;
+    try {
+      // First delete the layer
+      const results = await db.delete(layers).where(eq(layers.id, id)).returning({ id: layers.id });
+      
+      // Update the active layout
+      const allLayers = await this.getLayers();
+      await this.updateActiveLayout(allLayers);
+      
+      // Reset the auto-increment sequence for layers so new IDs start fresh
+      await db.execute(
+        `SELECT setval(pg_get_serial_sequence('layers', 'id'), 
+          COALESCE((SELECT MAX(id) FROM layers), 0));`
+      );
+      
+      return results.length > 0;
+    } catch (error) {
+      console.error("Error deleting layer:", error);
+      return false;
+    }
   }
   
   // Layout methods
