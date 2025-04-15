@@ -113,11 +113,12 @@ export function LayerEditor() {
   const handleSave = async () => {
     if (!selectedLayer) return;
 
-    // Debug the asset selection
+    // Debug the asset selection for troubleshooting
     console.log("LayerEditor - Save - Current sourceOption:", sourceOption);
     console.log("LayerEditor - Save - selectedLayer content:", selectedLayer.content);
     
     try {
+      // Create the updated layer with current state values
       const updatedLayer = {
         ...selectedLayer,
         position: {
@@ -133,7 +134,7 @@ export function LayerEditor() {
         },
         content: {
           ...selectedLayer.content,
-          source: sourceOption,
+          source: sourceOption, // Using the current sourceOption value
           rotationInterval,
           timerEnabled,
           timerDuration,
@@ -333,11 +334,12 @@ export function LayerEditor() {
           selectedAsset={sourceOption}
           onAssetSelect={(assetPath) => {
             console.log("LayerEditor - Asset selected:", assetPath);
+            // Important: This needs to be handled properly
             setSourceOption(assetPath);
-            // Debug immediately after setting
-            setTimeout(() => {
-              console.log("LayerEditor - sourceOption after setting:", sourceOption);
-            }, 0);
+            
+            // Since state updates are asynchronous, we need to use the current value
+            // when we save the layer rather than relying on the state variable
+            console.log("LayerEditor - Will use source for future save:", assetPath);
           }}
         />
       </div>

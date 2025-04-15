@@ -9,25 +9,40 @@ interface AssetSelectorProps {
 
 export function AssetSelector({ selectedAsset, onAssetSelect }: AssetSelectorProps) {
   const [filter, setFilter] = useState<string>("all");
-  const isInitialMount = useRef(true);
+  const isFirstRender = useRef(true);
+  const [selectedAssetInternal, setSelectedAssetInternal] = useState<string>(selectedAsset);
   
   // Fetch all assets
   const { data: assets = [], isLoading } = useQuery<Asset[]>({
     queryKey: ['/api/assets'],
+    refetchInterval: 5000 // Ensure we regularly refresh the asset list
   });
   
-  // Add debug logging
+  // Keep internal state in sync with props
   useEffect(() => {
-    console.log("AssetSelector - Current assets:", assets);
-    console.log("AssetSelector - Selected asset:", selectedAsset);
+    console.log("AssetSelector - selectedAsset prop changed:", selectedAsset);
+    setSelectedAssetInternal(selectedAsset);
+  }, [selectedAsset]);
+  
+  // Update when internal selection changes
+  const handleAssetSelect = (assetPath: string) => {
+    console.log("AssetSelector - handleAssetSelect:", assetPath);
+    setSelectedAssetInternal(assetPath);
+    onAssetSelect(assetPath);
+  };
+  
+  // Add debug logging and handle asset selection logic
+  useEffect(() => {
+    console.log("AssetSelector - Available assets:", assets.length, assets.map(a => a.path));
+    console.log("AssetSelector - Current selection:", selectedAssetInternal);
     
-    // Auto-select the first asset if none is selected and assets exist
-    if (isInitialMount.current && assets.length > 0 && !selectedAsset) {
+    // Only auto-select the first asset if there's no selection and assets exist
+    if (isFirstRender.current && assets.length > 0 && !selectedAssetInternal) {
       console.log("AssetSelector - Auto-selecting first asset:", assets[0].path);
-      onAssetSelect(assets[0].path);
-      isInitialMount.current = false;
+      handleAssetSelect(assets[0].path);
+      isFirstRender.current = false;
     }
-  }, [assets, selectedAsset, onAssetSelect]);
+  }, [assets, selectedAssetInternal]);
   
   // Filter assets by type
   const filteredAssets = filter === "all" 
@@ -97,11 +112,11 @@ export function AssetSelector({ selectedAsset, onAssetSelect }: AssetSelectorPro
               <div
                 key={asset.id}
                 className={`relative aspect-square rounded-md overflow-hidden border transition-all cursor-pointer hover:opacity-90 hover:border-secondary ${
-                  selectedAsset === asset.path ? "border-primary ring-1 ring-primary" : "border-border"
+                  selectedAssetInternal === asset.path ? "border-primary ring-1 ring-primary" : "border-border"
                 }`}
                 onClick={() => {
                   console.log("AssetSelector - Selecting asset:", asset.path);
-                  onAssetSelect(asset.path);
+                  handleAssetSelect(asset.path);
                 }}
               >
                 {asset.type === "image" && (
@@ -136,11 +151,11 @@ export function AssetSelector({ selectedAsset, onAssetSelect }: AssetSelectorPro
       </div>
       
       {/* Selected asset display */}
-      {selectedAsset && (
+      {selectedAssetInternal && (
         <div className="p-2 bg-muted/50 border border-border rounded-md">
           <p className="text-xs mb-1 font-medium">Selected Asset:</p>
           <p className="text-xs truncate text-muted-foreground break-all">
-            {selectedAsset.split('/').pop() || selectedAsset}
+            {selectedAssetInternal.split('/').pop() || selectedAssetInternal}
           </p>
         </div>
       )}
