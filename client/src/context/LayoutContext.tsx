@@ -190,18 +190,12 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
         );
         
         // Single API call to update all layers with the calculated percentages
-        await apiRequest('/api/active-layout/sync', {
-          method: 'POST',
-          body: {
-            layers: currentLayers
-          }
+        await apiRequest('POST', '/api/active-layout/sync', {
+          layers: currentLayers
         });
         
         // If direct layer update is also needed to persist changes
-        await apiRequest(`/api/layers/${layerId}`, {
-          method: 'PUT',
-          body: updatedLayer
-        });
+        await apiRequest('PUT', `/api/layers/${layerId}`, updatedLayer);
         
       } catch (apiError) {
         console.error('API error while updating position:', apiError);

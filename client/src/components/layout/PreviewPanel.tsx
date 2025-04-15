@@ -331,7 +331,7 @@ export function PreviewPanel() {
       {/* Preview Canvas */}
       <div 
         ref={previewRef}
-        className={`preview-area w-full relative overflow-hidden ${
+        className={`preview-container preview-area w-full relative overflow-hidden ${
           aspectRatio === "16:9" ? "aspect-video" : 
           aspectRatio === "4:3" ? "aspect-[4/3]" : 
           "aspect-square"
