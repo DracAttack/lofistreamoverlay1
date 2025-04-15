@@ -4,12 +4,10 @@ import { SpotifyWidget } from "../stream/SpotifyWidget";
 import { QuoteOverlay } from "../stream/QuoteOverlay";
 import { TimerOverlay } from "../stream/TimerOverlay";
 import { VideoOverlay } from "../stream/VideoOverlay";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { queryClient } from "@/lib/queryClient";
 
 export function PreviewPanel() {
-  const { layers, selectedLayer, setLayers } = useLayoutContext();
+  const { layers, selectedLayer, setLayers, updateLayerPosition } = useLayoutContext();
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -141,10 +139,8 @@ export function PreviewPanel() {
       const layer = layers.find(l => l.id === dragTarget);
       if (layer) {
         try {
-          await apiRequest("PUT", `/api/layers/${dragTarget}`, {
-            position: layer.position
-          });
-          queryClient.invalidateQueries({ queryKey: ['/api/layers'] });
+          // Use the context function to update position on server and broadcast to clients
+          await updateLayerPosition(dragTarget, layer.position);
         } catch (error) {
           toast({
             title: "Error",

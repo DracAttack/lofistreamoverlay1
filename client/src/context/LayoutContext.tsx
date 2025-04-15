@@ -101,9 +101,8 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
       );
 
       // Send update to server
-      await apiRequest(`/api/layers/${layerId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ position: updatedLayer.position })
+      await apiRequest('PUT', `/api/layers/${layerId}`, { 
+        position: updatedLayer.position 
       });
     } catch (error) {
       console.error('Failed to update layer position:', error);
