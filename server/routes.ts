@@ -387,16 +387,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Fallback middleware to catch all requests if content-type doesn't match raw parser
+  app.use("/api/upload", (req, res, next) => {
+    if (req.method === "POST" && !req.is("application/octet-stream") && !req.is("image/*") && !req.is("video/*") && !req.is("audio/*") && !req.is("text/*")) {
+      let data: Buffer[] = [];
+      req.on('data', (chunk) => {
+        data.push(chunk);
+      });
+      req.on('end', () => {
+        req.body = Buffer.concat(data);
+        next();
+      });
+    } else {
+      next();
+    }
+  });
+  
   // File upload handling with Express built-in middleware
-  app.post("/api/upload", express.raw({ limit: "100mb", type: "application/octet-stream" }), async (req: Request, res: Response) => {
+  app.post("/api/upload", express.raw({ limit: "100mb", type: ["application/octet-stream", "image/*", "video/*", "audio/*", "text/*"] }), async (req: Request, res: Response) => {
     try {
       const contentType = req.headers["content-type"] || "";
-      const fileName = req.headers["x-file-name"] as string;
+      let fileName = req.headers["x-file-name"] as string;
       const fileType = req.headers["x-file-type"] as string;
+      
+      console.log("Upload headers:", {
+        contentType,
+        fileName,
+        fileType,
+        headers: req.headers
+      });
       
       if (!fileName) {
         return res.status(400).json({ message: "File name is required" });
       }
+      
+      // Decode the filename if it's URL encoded
+      fileName = decodeURIComponent(fileName);
       
       // Create a unique filename
       const uniqueFileName = `${Date.now()}-${fileName}`;

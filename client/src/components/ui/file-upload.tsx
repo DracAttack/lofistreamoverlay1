@@ -49,14 +49,15 @@ export function FileUpload({
         try {
           const arrayBuffer = event.target?.result as ArrayBuffer;
           
-          // Use fetch directly for binary data
+          // Use fetch directly for binary data with credentials included
           const response = await fetch("/api/upload", {
             method: "POST",
             headers: {
-              "Content-Type": file.type,
-              "X-File-Name": file.name,
+              "Content-Type": file.type || "application/octet-stream",
+              "X-File-Name": encodeURIComponent(file.name),
               "X-File-Type": fileType
             },
+            credentials: "include",  // Include credentials
             body: arrayBuffer,
           });
           
