@@ -5,6 +5,7 @@ import { QuoteOverlay } from "./QuoteOverlay";
 import { SpotifyWidget } from "./SpotifyWidget";
 import { VideoOverlay } from "./VideoOverlay";
 import { TimerOverlay } from "./TimerOverlay";
+import { StreamVideoPlayer } from "./StreamVideoPlayer";
 import { useLayoutContext } from "@/context/LayoutContext";
 
 interface StreamOutputProps {
@@ -373,38 +374,50 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
             ) : layer.content?.source ? (
               <>
                 {/\.(mp4|webm|ogg|mov)$/i.test(layer.content.source) ? (
-                  // Video content with scheduling support
-                  <VideoOverlay
-                    key={`video-${layer.id}-${layer.content.source}`} // Unique key based on layer ID and source
-                    style={{
-                      backgroundColor: /\.webm$/i.test(layer.content.source) ? 'transparent' : layer.style.backgroundColor,
-                      textColor: layer.style.textColor,
-                      borderRadius: layer.style.borderRadius,
-                      backdropBlur: layer.style.backdropBlur,
-                      opacity: layer.style.opacity !== undefined ? 
-                        parseFloat(layer.style.opacity as unknown as string) : 1
-                    }}
-                    source={layer.content.source}
-                    loop={isBackgroundLayer 
-                      ? true // Background videos should ALWAYS loop
-                      : (layer.content.scheduleEnabled 
-                          ? (layer.content.scheduleLoop === true) 
-                          : true)} // If scheduling enabled, respect scheduleLoop; otherwise default to true
-                    autoplay={true}
-                    muted={true}
-                    schedule={{
-                      // For background layer (Layer 1), ALWAYS disable scheduling
-                      enabled: isBackgroundLayer ? false : Boolean(layer.content.scheduleEnabled), 
-                      interval: parseInt(String(layer.content.scheduleInterval || "600"), 10),
-                      duration: parseInt(String(layer.content.scheduleDuration || "5"), 10),
-                      // For background layer, NEVER auto-hide
-                      autoHide: isBackgroundLayer ? false : (
-                        layer.content.scheduleEnabled ? 
-                          (layer.content.scheduleAutoHide !== false) : 
-                          true
-                      )
-                    }}
-                  />
+                  isBackgroundLayer ? (
+                    // For background layer (Layer 1), use the optimized 24/7 stream player
+                    // This will never reload or reset on component rerender
+                    <StreamVideoPlayer
+                      key={`stream-video-${layer.id}`} // Stable key for React reconciliation
+                      source={layer.content.source}
+                      style={{
+                        backgroundColor: /\.webm$/i.test(layer.content.source) ? 'transparent' : layer.style.backgroundColor,
+                        textColor: layer.style.textColor,
+                        borderRadius: layer.style.borderRadius,
+                        backdropBlur: layer.style.backdropBlur,
+                        opacity: layer.style.opacity !== undefined ? 
+                          parseFloat(layer.style.opacity as unknown as string) : 1
+                      }}
+                      isBackground={true}
+                    /> 
+                  ) : (
+                    // For non-background layers, keep the scheduling capability
+                    <VideoOverlay
+                      key={`video-${layer.id}-${layer.content.source}`} // Unique key based on layer ID and source
+                      style={{
+                        backgroundColor: /\.webm$/i.test(layer.content.source) ? 'transparent' : layer.style.backgroundColor,
+                        textColor: layer.style.textColor,
+                        borderRadius: layer.style.borderRadius,
+                        backdropBlur: layer.style.backdropBlur,
+                        opacity: layer.style.opacity !== undefined ? 
+                          parseFloat(layer.style.opacity as unknown as string) : 1
+                      }}
+                      source={layer.content.source}
+                      loop={layer.content.scheduleEnabled 
+                            ? (layer.content.scheduleLoop === true) 
+                            : true} // If scheduling enabled, respect scheduleLoop; otherwise default to true
+                      autoplay={true}
+                      muted={true}
+                      schedule={{
+                        enabled: Boolean(layer.content.scheduleEnabled),
+                        interval: parseInt(String(layer.content.scheduleInterval || "600"), 10),
+                        duration: parseInt(String(layer.content.scheduleDuration || "5"), 10),
+                        autoHide: layer.content.scheduleEnabled ? 
+                            (layer.content.scheduleAutoHide !== false) : 
+                            true
+                      }}
+                    />
+                  )
                 ) : /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(layer.content.source) ? (
                   // Image content
                   <div
