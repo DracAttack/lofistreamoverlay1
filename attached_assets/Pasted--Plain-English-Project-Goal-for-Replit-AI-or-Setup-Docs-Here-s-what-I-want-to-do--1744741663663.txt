@@ -1,0 +1,58 @@
+
+
+## 📝 Plain English Project Goal (for Replit AI or Setup Docs)
+
+> **Here's what I want to do:**
+
+I want to build a custom **browser-based stream overlay** that runs from Replit. This overlay will let me upload and manage multiple visual and audio files (like MP4 and MP3), and design a layout that I can easily use as a **Browser Source in OBS/Streamlabs**. This lets me offload CPU-heavy tasks from my local machine to the cloud.
+
+The final product should act like a **remote control panel + live renderer**, where I can:
+
+---
+
+### 🛠️ Configuration Page (Admin View)
+- Upload **background MP4 videos** (looping)
+- Upload **audio files** (MP3s, maybe ambient loops later)
+- Upload **visual assets** or **quote lists** (text or JSON format)
+- Arrange **up to 4 layers** (video, quote overlay, Spotify display, optional UI elements)  
+- Be able to **move, resize, and preview** how each element appears in the final layout
+- Save the layout to reuse across multiple streams
+
+---
+
+### 🎬 Output View (Stream Page)
+This is the page I’ll actually **load in Streamlabs OBS** as a browser source.
+
+It should:
+- Autoplay a **looping video background**
+- Display **rotating quotes or emotional affirmations** from a pool I’ve uploaded
+- Show a **live Spotify display** with track name, artist, and a QR code (auto-updating)
+- All the elements should be stacked, styled, and timed smoothly
+- Entire layout should **not require any local processing** — runs fully in Replit/cloud
+
+---
+
+### 📦 Features I Need
+- MP4 and MP3 file uploads
+- At least 4 movable/resizable layers
+- Simple layout editor (like click-and-drag boxes or X/Y input boxes)
+- Output a single **public-facing browser page** with everything combined
+- Auto-refresh or hot-reload if assets change
+- Optional: Basic scheduling
+
+---
+
+### 🎯 Visual Goal
+The output should **look like the example image** I’ve included:
+- A soft neon looping animation background (From uploaded MP4)  
+- A **Spotify now playing panel** with dynamic QR code pulled directly from Spotify API 
+- Subtle **rotating quotes** in a calm, aesthetically pleasing style, which will be pulled from an uploaded google sheets.  
+
+---
+
+Let me know when you're ready to move into the code phase — I can then help break this down into:
+1. File upload/backend setup
+2. Layer manager/editor UI
+3. Final stream renderer (public output)
+4. Spotify integration + quote rotator
+
