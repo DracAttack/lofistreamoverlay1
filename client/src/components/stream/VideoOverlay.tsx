@@ -41,6 +41,15 @@ export function VideoOverlay({
     autoHide: true
   }
 }: VideoOverlayProps) {
+  
+  // EMERGENCY FIX - Detect if this is Stream view (not Preview)
+  const isStreamView = !preview && window.location.pathname.includes('/stream');
+  // Force stream view to show Layer 1
+  const forceVisible = isStreamView;
+  
+  // Print which view we're rendering in
+  console.log(`VideoOverlay rendering in ${isStreamView ? 'STREAM VIEW' : 'PREVIEW'} with source: ${source?.substring(0, 30)}`);
+  
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isVisible, setIsVisible] = useState(preview || !schedule.enabled || !schedule.autoHide);
   const [isTransparentWebm, setIsTransparentWebm] = useState(false);
@@ -270,8 +279,24 @@ export function VideoOverlay({
     return isFullWidth && isFullHeight;
   };
   
-  // Only hide if not a background layer, not visible and not in preview mode
-  if (!isVisible && !preview && !isBackgroundLayer()) {
+  // CRITICAL: For Layer 1 and any fullscreen video, do not hide based on visibility 
+  // For other layers, only hide if not visible and not in preview
+  
+  // In Stream view, force background elements to always be visible
+  const forceStreamDisplay = isStreamView && window.location.pathname.includes('/stream');
+  
+  // Special case for the background Layer 1 - NEVER hide in stream view
+  if (isBackground.current) {
+    console.log("Background video detected - will NEVER be hidden");
+  }
+  
+  // Only hide if:
+  // 1. Not visible AND
+  // 2. Not in preview mode AND
+  // 3. Not identified as a background layer AND
+  // 4. Not forced to display in stream view
+  if (!isVisible && !preview && !isBackground.current && !isBackgroundLayer() && !forceStreamDisplay) {
+    console.log("HIDING a non-background video overlay");
     return null;
   }
   

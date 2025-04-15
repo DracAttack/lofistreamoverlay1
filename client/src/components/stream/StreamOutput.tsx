@@ -291,7 +291,7 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
         const hasFullscreenFlag = layer.content?.isFullscreen === true;
         const isFullscreen = isBackgroundLayer || hasFullscreenFlag;
         
-        // Debug only Layer 1 to minimize log spam
+        // DEBUG: Always print Layer 1 details
         if (isBackgroundLayer) {
           console.log(`BACKGROUND LAYER ${layer.id} settings:`, { 
             isBackgroundLayer,
@@ -384,18 +384,24 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
                         parseFloat(layer.style.opacity as unknown as string) : 1
                     }}
                     source={layer.content.source}
-                    loop={layer.content.scheduleEnabled ? 
-                      (layer.content.scheduleLoop === true) : 
-                      true} // If scheduling enabled, respect scheduleLoop; otherwise default to true
+                    loop={isBackgroundLayer 
+                      ? true // Background videos should ALWAYS loop
+                      : (layer.content.scheduleEnabled 
+                          ? (layer.content.scheduleLoop === true) 
+                          : true)} // If scheduling enabled, respect scheduleLoop; otherwise default to true
                     autoplay={true}
                     muted={true}
                     schedule={{
-                      enabled: Boolean(layer.content.scheduleEnabled), // Ensure boolean type
-                      interval: parseInt(String(layer.content.scheduleInterval || "600"), 10), // Force number type
-                      duration: parseInt(String(layer.content.scheduleDuration || "5"), 10),   // Force number type
-                      autoHide: layer.content.scheduleEnabled ? 
-                        (layer.content.scheduleAutoHide !== false) : 
-                        true // default to true
+                      // For background layer (Layer 1), ALWAYS disable scheduling
+                      enabled: isBackgroundLayer ? false : Boolean(layer.content.scheduleEnabled), 
+                      interval: parseInt(String(layer.content.scheduleInterval || "600"), 10),
+                      duration: parseInt(String(layer.content.scheduleDuration || "5"), 10),
+                      // For background layer, NEVER auto-hide
+                      autoHide: isBackgroundLayer ? false : (
+                        layer.content.scheduleEnabled ? 
+                          (layer.content.scheduleAutoHide !== false) : 
+                          true
+                      )
                     }}
                   />
                 ) : /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(layer.content.source) ? (
