@@ -32,4 +32,17 @@
     background-color: rgba(0, 0, 0, 1);
     overflow: hidden;
   }
+  
+  /* Video overlay animation classes */
+  .video-overlay-visible {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.3s ease-in-out, transform 0.5s ease-in-out;
+  }
+  
+  .video-overlay-hidden {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s ease-in-out, transform 0.5s ease-in-out;
+  }
 }
