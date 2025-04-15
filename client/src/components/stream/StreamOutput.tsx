@@ -43,11 +43,17 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
     refetchInterval: 10000, // Check every 10 seconds
   });
 
-  // Find the visible layers sorted by z-index
-  // All layers are treated generically now, just sort by z-index
+  // Find the layers sorted by z-index
+  // Log all received layers to see what we're getting
+  console.log("StreamOutput - All layers:", layers);
+  
+  // Make sure we're showing all layers
   const visibleLayers = layers
-    .filter(layer => layer.visible)
+    // Even invisible layers should show in stream
+    // .filter(layer => layer.visible) 
     .sort((a, b) => a.zIndex - b.zIndex);
+    
+  console.log("StreamOutput - Layers being rendered:", visibleLayers.length);
     
   // Get a layer with Spotify connection
   const spotifyLayer = visibleLayers.find(
@@ -178,13 +184,10 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
   return (
     <div 
       ref={containerRef}
-      className="relative overflow-hidden bg-background stream-output"
+      className="relative overflow-hidden bg-black stream-output w-full h-full"
       style={{ 
-        margin: '0 auto',
+        margin: '0',
         position: 'relative',
-        width: `${BASE_WIDTH}px`,
-        height: `${BASE_HEIGHT}px`,
-        maxWidth: '100%',
         aspectRatio: aspectRatio === '4:3' ? '4/3' : aspectRatio === '1:1' ? '1/1' : '16/9',
         transform: 'scale(1)',
         transformOrigin: 'center'
