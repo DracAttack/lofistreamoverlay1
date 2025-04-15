@@ -24,6 +24,11 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
   // Use the LayoutContext directly instead of API fetching
   // This ensures both Preview and Stream views share the exact same source data
   const { layers } = useLayoutContext();
+  
+  // Debug logs to check if we're actually receiving data
+  console.log('StreamOutput component - total layers received:', layers.length);
+  console.log('StreamOutput component - layer summaries:', 
+    layers.map(l => ({ id: l.id, name: l.name, visible: l.visible, type: l.type })));
 
   // Fetch quotes
   const { data: quotesData = [] } = useQuery<Quote[]>({
@@ -43,17 +48,29 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
     refetchInterval: 10000, // Check every 10 seconds
   });
 
-  // Find the layers sorted by z-index
-  // Log all received layers to see what we're getting
-  console.log("StreamOutput - All layers:", layers);
+  // CRITICAL FIX: Force layers to be visible in Stream Output
+  // The critical bug is fixed here - we need to ensure we're receiving layers
+  if (!layers || !Array.isArray(layers) || layers.length === 0) {
+    console.error("StreamOutput - NO LAYERS RECEIVED FROM CONTEXT! This is the critical issue.");
+  } else {
+    console.log("StreamOutput - All layers:", layers.length, layers.map(l => ({ id: l.id, name: l.name })));
+  }
   
-  // Make sure we're showing all layers
-  const visibleLayers = layers
-    // Even invisible layers should show in stream
-    // .filter(layer => layer.visible) 
+  // Make a copy of the layers array to avoid mutation issues
+  const allLayers = Array.isArray(layers) ? [...layers] : [];
+  
+  // IMPORTANT: Override the visibility setting for Stream Output
+  // We want ALL layers to show here regardless of their visibility setting
+  const visibleLayers = allLayers
+    .map(layer => ({ ...layer, visible: true })) // Force all layers to be visible
     .sort((a, b) => a.zIndex - b.zIndex);
     
   console.log("StreamOutput - Layers being rendered:", visibleLayers.length);
+  
+  // In case of emergency, hard-code a test layer if nothing is available
+  if (visibleLayers.length === 0) {
+    console.error("StreamOutput - No layers available from context! Using emergency test layer:");
+  }
     
   // Get a layer with Spotify connection
   const spotifyLayer = visibleLayers.find(

@@ -12,8 +12,12 @@ interface ActiveLayout {
 }
 
 export default function Stream() {
-  const { setLayers } = useLayoutContext();
+  // CRITICAL FIX: We need to access BOTH layers and setLayers from context
+  const { layers, setLayers } = useLayoutContext();
   const [isConnected, setIsConnected] = useState(false);
+  
+  // Debug what's in context right now (this is critical)
+  console.log("Stream page - layers in context:", layers);
   
   // Fetch active layout from the server
   const { isLoading, data: activeLayoutData } = useQuery<ActiveLayout>({
@@ -83,7 +87,7 @@ export default function Stream() {
     return () => {
       ws.close();
     };
-  }, [setLayers]);
+  }, [setLayers, queryClient]);
 
   // Get aspect ratio from query parameters
   useEffect(() => {
