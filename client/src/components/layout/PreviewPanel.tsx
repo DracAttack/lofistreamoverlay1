@@ -49,6 +49,10 @@ export function PreviewPanel() {
     const x = Math.max(0, Math.min(rect.width - 10, e.clientX - rect.left - dragOffset.x));
     const y = Math.max(0, Math.min(rect.height - 10, e.clientY - rect.top - dragOffset.y));
     
+    // Calculate percentage positions for cross-view compatibility
+    const xPercent = (x / rect.width) * 100;
+    const yPercent = (y / rect.height) * 100;
+    
     // Update local UI immediately for responsive feel
     const updatedLayers = layers.map(layer => {
       if (layer.id === dragTarget) {
@@ -57,7 +61,9 @@ export function PreviewPanel() {
           position: {
             ...layer.position,
             x,
-            y
+            y,
+            xPercent,
+            yPercent
           }
         };
       }
@@ -73,7 +79,13 @@ export function PreviewPanel() {
       lastSyncTimeRef.current = now;
       
       // Send update to server during drag - but throttled
-      updateLayerPosition(dragTarget, { x, y })
+      // Include both pixel and percentage values for consistent cross-view rendering
+      updateLayerPosition(dragTarget, { 
+        x, 
+        y, 
+        xPercent, 
+        yPercent 
+      })
         .catch(error => {
           console.error("Error updating position during drag:", error);
         });
@@ -134,12 +146,22 @@ export function PreviewPanel() {
       newY = currentY;
     }
     
-    // Create new position object with updates
+    // Calculate percentage positions for cross-view compatibility
+    const xPercent = (newX / rect.width) * 100;
+    const yPercent = (newY / rect.height) * 100;
+    const widthPercent = (newWidth / rect.width) * 100;
+    const heightPercent = (newHeight / rect.height) * 100;
+    
+    // Create new position object with updates - including percentages
     const newPosition = {
       x: newX,
       y: newY,
       width: newWidth,
-      height: newHeight
+      height: newHeight,
+      xPercent,
+      yPercent,
+      widthPercent,
+      heightPercent
     };
     
     // Update layers with new dimensions
