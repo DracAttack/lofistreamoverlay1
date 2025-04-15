@@ -138,15 +138,28 @@ export function LayerEditor() {
     console.log("LayerEditor - Save - selectedLayer content:", selectedLayer.content);
     
     try {
+      // If fullscreen is enabled, set position and size to cover entire area
+      const positionUpdate = isFullscreen ? {
+        ...selectedLayer.position,
+        x: 0,
+        y: 0,
+        width: 1920, // Full width for 1920x1080 standard
+        height: 1080, // Full height for 1920x1080 standard
+        xPercent: 0,  // 0% from left (left edge)
+        yPercent: 0,  // 0% from top (top edge)
+        widthPercent: 100, // 100% of container width
+        heightPercent: 100 // 100% of container height
+      } : {
+        ...selectedLayer.position,
+        x: position.x,
+        y: position.y,
+        width: size.width,
+        height: size.height
+      };
+      
       const updatedLayer = {
         ...selectedLayer,
-        position: {
-          ...selectedLayer.position,
-          x: position.x,
-          y: position.y,
-          width: size.width,
-          height: size.height
-        },
+        position: positionUpdate,
         style: {
           ...selectedLayer.style,
           ...style
@@ -420,6 +433,28 @@ export function LayerEditor() {
         )}
       </div>
 
+      {/* Fullscreen Option */}
+      <div className="mb-4 border-t border-secondary/30 pt-4">
+        <div className="flex items-center justify-between mb-3">
+          <label className="font-semibold text-sm">Display Options</label>
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-foreground/70">Fullscreen</span>
+            <input 
+              type="checkbox" 
+              checked={isFullscreen} 
+              onChange={(e) => setIsFullscreen(e.target.checked)}
+              className="h-4 w-4 rounded border-secondary"
+            />
+          </div>
+        </div>
+        
+        {isFullscreen && (
+          <div className="bg-background/50 rounded p-2 mb-3 text-xs text-foreground/70">
+            <p>Layer will cover the entire screen (1920x1080) at coordinates (0,0).</p>
+          </div>
+        )}
+      </div>
+      
       {/* Scheduling Options */}
       <div className="mb-4 border-t border-secondary/30 pt-4">
         <div className="flex items-center justify-between mb-3">

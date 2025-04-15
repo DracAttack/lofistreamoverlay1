@@ -182,8 +182,8 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
       style={{ 
         margin: '0 auto',
         position: 'relative',
-        width: '1920px',
-        height: '1080px',
+        width: `${BASE_WIDTH}px`,
+        height: `${BASE_HEIGHT}px`,
         maxWidth: '100%',
         aspectRatio: aspectRatio === '4:3' ? '4/3' : aspectRatio === '1:1' ? '1/1' : '16/9',
         transform: 'scale(1)',
@@ -214,14 +214,12 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
           zIndex: layer.zIndex
         };
         
-        // Special case for first layer - treat as background
-        const isBackground = layer === visibleLayers[0];
-        
+        // All layers should be positioned normally (no special case for background)
         return (
           <div 
             key={layer.id}
-            className={isBackground ? "absolute inset-0" : "absolute"}
-            style={isBackground ? { zIndex: layer.zIndex } : position}
+            className="absolute"
+            style={position}
           >
             {/* Handle different types of content based on content */}
             {layer.content.timerEnabled ? (
@@ -284,7 +282,7 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
                       style={{
                         width: '100%',
                         height: '100%',
-                        objectFit: isBackground ? 'cover' : 'contain'
+                        objectFit: 'contain'
                       }}
                     />
                   </div>

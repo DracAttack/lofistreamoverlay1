@@ -52,6 +52,19 @@ export function VideoOverlay({
     }
   }, [source]);
   
+  // Handle browser visibility changes (fix issue with videos pausing when tab is not visible)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (videoRef.current && document.visibilityState === 'visible') {
+        // Resume playing the video when tab becomes visible again
+        videoRef.current.play().catch(console.error);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+  
   // Cleaner scheduling implementation
   useEffect(() => {
     // Skip scheduling in preview mode
