@@ -10,7 +10,7 @@ import { AssetSelector } from "./AssetSelector";
 export function LayerEditor() {
   const { selectedLayer, setLayers, layers } = useLayoutContext();
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [size, setSize] = useState({ width: 0, height: 0 });
+  const [size, setSize] = useState<{ width: number | 'auto', height: number | 'auto' }>({ width: 0, height: 0 });
   const [style, setStyle] = useState({ 
     backgroundColor: 'rgba(0,0,0,0.75)', 
     textColor: '#00FFFF',
@@ -35,8 +35,8 @@ export function LayerEditor() {
         y: selectedLayer.position.y || 0 
       });
       setSize({ 
-        width: selectedLayer.position.width || 300, 
-        height: selectedLayer.position.height || 200 
+        width: selectedLayer.position.width !== undefined ? selectedLayer.position.width : 300, 
+        height: selectedLayer.position.height !== undefined ? selectedLayer.position.height : 200 
       });
       setStyle({
         backgroundColor: selectedLayer.style.backgroundColor || 'rgba(0,0,0,0.75)',

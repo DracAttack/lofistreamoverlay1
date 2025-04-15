@@ -173,13 +173,15 @@ export function PreviewPanel() {
           .filter(layer => layer.visible)
           .sort((a, b) => a.zIndex - b.zIndex)
           .map(layer => {
+            // Special case for the first layer (background)
+            const isBackground = layer === layers.filter(l => l.visible).sort((a, b) => a.zIndex - b.zIndex)[0];
+            
             const style = {
               left: `${layer.position.x}px`,
               top: `${layer.position.y}px`,
-              width: layer.position.width ? `${layer.position.width}px` : 'auto',
-              height: layer.position.height ? `${layer.position.height}px` : 'auto',
+              width: layer.position.width === 'auto' ? 'auto' : `${layer.position.width}px`,
+              height: layer.position.height === 'auto' ? 'auto' : `${layer.position.height}px`,
               zIndex: layer.zIndex,
-              backgroundColor: layer.type === 'background' ? 'transparent' : undefined,
               cursor: isDragging && dragTarget === layer.id ? 'grabbing' : 'grab',
               position: 'absolute' as 'absolute',
             };
@@ -187,34 +189,89 @@ export function PreviewPanel() {
             return (
               <div 
                 key={layer.id} 
-                style={style}
+                style={isBackground ? { ...style, left: '0', top: '0', width: '100%', height: '100%' } : style}
                 onMouseDown={(e) => startDrag(e, layer.id)}
                 className={`${selectedLayer?.id === layer.id ? 'outline outline-2 outline-primary' : ''}`}
               >
-                {layer.type === 'background' && (
-                  <div className="absolute inset-0 bg-blue-500/20">
-                    <span className="absolute left-2 top-2 text-sm">Background</span>
+                {/* Content based on asset type */}
+                {layer.content.source ? (
+                  <>
+                    {/\.(mp4|webm|ogg|mov)$/i.test(layer.content.source) ? (
+                      // Video content
+                      <video 
+                        src={layer.content.source}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: isBackground ? 'cover' : 'contain',
+                          backgroundColor: layer.style.backgroundColor || 'transparent',
+                          borderRadius: layer.style.borderRadius || '0',
+                        }}
+                        autoPlay
+                        loop
+                        muted
+                      />
+                    ) : /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(layer.content.source) ? (
+                      // Image content
+                      <div
+                        style={{
+                          backgroundColor: layer.style.backgroundColor || 'transparent',
+                          borderRadius: layer.style.borderRadius || '0',
+                          overflow: 'hidden',
+                          height: '100%',
+                          width: '100%',
+                        }}
+                      >
+                        <img 
+                          src={layer.content.source} 
+                          alt={`Layer ${layer.id}`}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: isBackground ? 'cover' : 'contain'
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      // Default for other content types
+                      <div 
+                        className="w-full h-full flex items-center justify-center"
+                        style={{
+                          backgroundColor: layer.style.backgroundColor || 'rgba(0,0,0,0.5)',
+                          borderRadius: layer.style.borderRadius || '0',
+                        }}
+                      >
+                        <p style={{ color: layer.style.textColor || '#fff' }}>
+                          {layer.name}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : isBackground ? (
+                  // Empty background layer
+                  <div 
+                    className="w-full h-full"
+                    style={{ backgroundColor: layer.style.backgroundColor || '#111' }}
+                  />
+                ) : (
+                  // Empty layer
+                  <div 
+                    className="w-full h-full flex items-center justify-center"
+                    style={{
+                      backgroundColor: layer.style.backgroundColor || 'rgba(0,0,0,0.5)',
+                      borderRadius: layer.style.borderRadius || '0',
+                    }}
+                  >
+                    <p style={{ color: layer.style.textColor || '#fff' }}>
+                      {layer.name}
+                    </p>
                   </div>
                 )}
-                
-                {layer.type === 'quote' && (
-                  <QuoteOverlay 
-                    style={layer.style}
-                    preview={true}
-                  />
-                )}
-                
-                {layer.type === 'spotify' && (
-                  <SpotifyWidget 
-                    style={layer.style}
-                    preview={true}
-                  />
-                )}
-                
-                {layer.type === 'logo' && (
-                  <div className="text-xs text-accent font-mono text-center p-4 bg-black/50 rounded">
-                    <i className="ri-focus-3-line text-xl"></i>
-                    <div>Logo Placeholder</div>
+
+                {/* Show layer controls if selected */}
+                {selectedLayer?.id === layer.id && (
+                  <div className="absolute -top-6 left-0 bg-primary text-xs text-white px-2 py-1 rounded">
+                    Layer #{layer.id}: {layer.name}
                   </div>
                 )}
               </div>
