@@ -151,11 +151,11 @@ export function AssetSelector({ selectedAsset, onAssetSelect }: AssetSelectorPro
       </div>
       
       {/* Selected asset display */}
-      {selectedAssetInternal && (
+      {selectedAsset && (
         <div className="p-2 bg-muted/50 border border-border rounded-md">
           <p className="text-xs mb-1 font-medium">Selected Asset:</p>
           <p className="text-xs truncate text-muted-foreground break-all">
-            {selectedAssetInternal.split('/').pop() || selectedAssetInternal}
+            {selectedAsset.split('/').pop() || selectedAsset}
           </p>
         </div>
       )}
