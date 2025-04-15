@@ -1,0 +1,192 @@
+🚩 Issue 1: Background Video Missing in Stream Output
+Issue Identified:
+
+Your PreviewPanel renders the background ("Loop") correctly, but StreamOutput does not.
+
+The logic in StreamOutput currently isn't explicitly rendering the video layer correctly, likely due to conditional rendering (layer.type or incorrect property checks).
+
+Exact Cause:
+
+Your StreamOutput component currently doesn't handle video layers robustly. It attempts conditional checks (layer.content.source or possibly incorrect layer.type checks) which are misaligned or incorrectly structured.
+
+Explicit Code Fix (StreamOutput.tsx):
+Replace your existing layer rendering clearly with this robust and explicit implementation:
+
+tsx
+Copy
+Edit
+const BASE_WIDTH = 1920;
+const BASE_HEIGHT = 1080;
+
+return (
+  <div
+    ref={containerRef}
+    style={{ width: `${BASE_WIDTH}px`, height: `${BASE_HEIGHT}px`, position: 'relative', overflow: 'hidden' }}
+  >
+    {layers
+      .filter(layer => layer.visible && layer.content?.source)
+      .sort((a, b) => a.zIndex - b.zIndex)
+      .map(layer => (
+        <VideoOverlay
+          key={layer.id}
+          source={layer.content.source}
+          loop={layer.content.loop ?? true}
+          autoplay={layer.content.autoplay ?? true}
+          muted={layer.content.muted ?? true}
+          style={{
+            position: 'absolute',
+            left: `${layer.position.xPercent}%`,
+            top: `${layer.position.yPercent}%`,
+            width: `${layer.size.widthPercent}%`,
+            height: `${layer.size.heightPercent}%`,
+            zIndex: layer.zIndex
+          }}
+          schedule={layer.content.schedule || { enabled: false }}
+        />
+      ))}
+  </div>
+);
+Why This Fixes It Clearly:
+
+Explicitly filters layers with correct visibility & video source.
+
+Explicitly positions and sizes layers using percentage → pixel scaling accurately, consistently aligning with PreviewPanel logic.
+
+🚩 Issue 2: Lofi Cat Scheduling Issue (Appears Only Once)
+Issue Identified:
+
+The Lofi Cat WebM correctly appears the first time but doesn't repeat at scheduled intervals.
+
+Exact Cause:
+
+Your current scheduling logic doesn't persist correctly across React lifecycle changes, causing only the initial cycle to run successfully.
+
+Explicit Code Fix (VideoOverlay.tsx):
+Update scheduling clearly and explicitly with the robust implementation:
+
+tsx
+Copy
+Edit
+useEffect(() => {
+  if (!schedule.enabled || preview) return;
+
+  let showTimeout: NodeJS.Timeout;
+
+  const triggerSchedule = () => {
+    setIsVisible(true);
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+      videoRef.current.play().catch(console.error);
+    }
+    showTimeout = setTimeout(() => {
+      setIsVisible(false);
+    }, (schedule.duration || 5) * 1000);
+  };
+
+  triggerSchedule(); // Initial trigger immediately
+  const interval = setInterval(triggerSchedule, (schedule.interval || 600) * 1000);
+
+  return () => {
+    clearInterval(interval);
+    clearTimeout(showTimeout);
+  };
+}, [schedule.enabled, schedule.interval, schedule.duration, source]);
+Why This Fixes It Clearly:
+
+Ensures persistent intervals and correct visibility toggling indefinitely.
+
+Correctly handles React component lifecycles, cleanup, and re-renders explicitly.
+
+🚩 Issue 3: Dragging Restriction ("Invisible Border") in Preview
+Issue Identified:
+
+You can't drag assets past a certain arbitrary right boundary.
+
+Exact Cause:
+
+Your current drag handler subtracts arbitrary offsets, causing unintended restrictions within your PreviewPanel.
+
+Explicit Code Fix (PreviewPanel.tsx):
+Replace your drag handler clearly with this explicit fix:
+
+tsx
+Copy
+Edit
+const handleDrag = (e: React.MouseEvent) => {
+  if (!isDragging || dragTarget === null || !previewRef.current) return;
+
+  const rect = previewRef.current.getBoundingClientRect();
+  const xPercent = ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100;
+  const yPercent = ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100;
+
+  updateLayerPosition(dragTarget, {
+    xPercent: Math.min(100, Math.max(0, xPercent)),
+    yPercent: Math.min(100, Math.max(0, yPercent)),
+  });
+};
+Why This Fixes It Clearly:
+
+Explicitly ensures free dragging within the entire available PreviewPanel space (0–100% range clearly enforced).
+
+🚩 Issue 4: Three Non-functional Buttons Under Preview
+Issue Identified:
+
+There are three buttons with unknown/non-functional behavior.
+
+Exact Cause:
+
+These buttons currently lack implementation.
+
+Explicit Recommendation:
+
+Clearly implement meaningful functionality or explicitly mark them as placeholder buttons to avoid confusion clearly:
+
+jsx
+Copy
+Edit
+<button disabled title="Resize functionality (coming soon)">🔲 Resize</button>
+<button disabled title="Position locking (coming soon)">🔒 Lock Position</button>
+<button disabled title="Aspect ratio toggle (coming soon)">🔳 Aspect</button>
+Why This Fixes It Clearly:
+
+Provides clear user communication about their purpose and status, avoiding confusion explicitly.
+
+🚩 Issue 5: Source Persistence (Video Freezes When Tabs Change)
+Issue Identified:
+
+Videos pause or freeze when the browser tab isn't actively viewed.
+
+Exact Cause:
+
+Modern browsers pause media playback on hidden tabs automatically.
+
+Explicit Fix (VideoOverlay.tsx):
+Explicitly handle browser visibility changes clearly:
+
+tsx
+Copy
+Edit
+useEffect(() => {
+  const handleVisibilityChange = () => {
+    if (videoRef.current && document.visibilityState === 'visible') {
+      videoRef.current.play().catch(console.error);
+    }
+  };
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+}, []);
+Why This Fixes It Clearly:
+
+Explicitly re-triggers playback immediately when the tab becomes visible again, ensuring persistence without freezing.
+
+🖥️ Summary (What You Do Right Now Clearly):
+✅ Issue 1 (StreamOutput): Add explicit rendering logic for video layers.
+
+✅ Issue 2 (Lofi Cat Scheduling): Robust React lifecycle scheduling clearly.
+
+✅ Issue 3 (Dragging Restriction): Correct percentage-based drag logic.
+
+✅ Issue 4 (Buttons): Clearly label or temporarily disable non-implemented UI clearly.
+
+✅ Issue 5 (Source Freezing): Handle visibility events explicitly to maintain playback persistence.

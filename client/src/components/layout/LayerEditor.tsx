@@ -31,6 +31,7 @@ export function LayerEditor() {
   const [scheduleDuration, setScheduleDuration] = useState(5); // 5 seconds default
   const [scheduleAutoHide, setScheduleAutoHide] = useState(true);
   const [scheduleLoop, setScheduleLoop] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const { toast } = useToast();
   
   // Fetch quotes for the quote selector
@@ -58,6 +59,15 @@ export function LayerEditor() {
         backdropBlur: selectedLayer.style.backdropBlur || 'backdrop-blur-sm'
       });
       setZIndex(selectedLayer.zIndex || 10);
+      
+      // Check if layer is currently in fullscreen mode (all percentages set to 0/100)
+      const isLayerFullscreen = 
+        selectedLayer.position.xPercent === 0 && 
+        selectedLayer.position.yPercent === 0 && 
+        selectedLayer.position.widthPercent === 100 && 
+        selectedLayer.position.heightPercent === 100;
+      
+      setIsFullscreen(isLayerFullscreen);
       
       // Explicitly handle the source properly
       const currentSource = selectedLayer.content?.source || "";
