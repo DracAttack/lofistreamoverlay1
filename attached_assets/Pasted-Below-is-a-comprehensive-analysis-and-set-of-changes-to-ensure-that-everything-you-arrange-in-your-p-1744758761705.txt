@@ -1,0 +1,163 @@
+Below is a comprehensive analysis and set of changes to ensure that everything you arrange in your preview maps exactly to what is rendered in your stream output. I'll explain each part so you know why the mismatch happens and what to do about it—all in one go.
+
+---
+
+## 1. The Single Source of Truth for Layout
+
+**Issue Identified:**  
+Even though you’re editing your layers in the PreviewPanel, the StreamOutput uses a different conversion scheme or “truth” for positioning and sizing. In effect, the layout context isn’t being applied equally between the two views.
+
+**What’s Happening:**  
+- Your preview panel and stream output are interpreting the layer data in different ways. For example, your PreviewPanel might be using raw pixel drag values while StreamOutput expects percentage values scaled to a 1920×1080 canvas.
+- If there’s any additional padding, borders, or offsets in one container but not the other, that will cause elements (like your Lofi Cat layer) to be off-center.
+
+**Solution:**  
+Ensure that your layout context stores all layer positions and sizes in **normalized values (percentages)** based on a base resolution (e.g., 1920×1080). Both views then use these percentages—but apply a **scaling factor** suited to their container. That is:
+
+- In **PreviewPanel**, if you have a “compressed” view (say half-size), multiply the percentage by the preview container’s actual dimensions.
+- In **StreamOutput**, multiply the percentage by the 1920 (or 1080) base value so it appears full-size.
+
+---
+
+## 2. Consistent Conversion: Example Code Changes
+
+### a. Updating the Layout Context (if not already done)
+
+Make sure your context stores positions as percentages. For example, when a drag ends, calculate and store:
+
+```tsx
+// Convert absolute drag coordinates into percentages relative to the container
+const rect = previewRef.current.getBoundingClientRect();
+const newXPercent = ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100;
+const newYPercent = ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100;
+
+// Update layer in context (modify updateLayerPosition accordingly)
+updateLayerPosition(dragTarget, {
+  xPercent: Math.min(100, Math.max(0, newXPercent)),
+  yPercent: Math.min(100, Math.max(0, newYPercent)),
+});
+```
+
+*(If your context previously stored raw `x` and `y` values, convert them into `xPercent` and `yPercent`.)*
+
+### b. Rendering in PreviewPanel.tsx
+
+When rendering your draggable layer in the preview, apply a scale factor. For example, if your preview is half the full resolution:
+
+```tsx
+const PREVIEW_SCALE = 0.5; // e.g., preview is 50% size of full 1080p
+
+// In your rendering loop inside PreviewPanel:
+<div
+  key={layer.id}
+  style={{
+    position: 'absolute',
+    left: `${(layer.position.xPercent / 100) * 1920 * PREVIEW_SCALE}px`,
+    top: `${(layer.position.yPercent / 100) * 1080 * PREVIEW_SCALE}px`,
+    width: `${(layer.size.widthPercent / 100) * 1920 * PREVIEW_SCALE}px`,
+    height: `${(layer.size.heightPercent / 100) * 1080 * PREVIEW_SCALE}px`,
+    zIndex: layer.zIndex,
+    cursor: 'move'
+  }}
+  onMouseDown={(e) => startDrag(e, layer.id)}
+>
+  {/* Render the layer's content */}
+</div>
+```
+
+### c. Rendering in StreamOutput.tsx
+
+For the full-size 1080p output, use the percentages directly against the base resolution:
+
+```tsx
+const BASE_WIDTH = 1920;
+const BASE_HEIGHT = 1080;
+
+// In your StreamOutput rendering loop:
+<div
+  key={layer.id}
+  style={{
+    position: 'absolute',
+    left: `${(layer.position.xPercent / 100) * BASE_WIDTH}px`,
+    top: `${(layer.position.yPercent / 100) * BASE_HEIGHT}px`,
+    width: `${(layer.size.widthPercent / 100) * BASE_WIDTH}px`,
+    height: `${(layer.size.heightPercent / 100) * BASE_HEIGHT}px`,
+    zIndex: layer.zIndex
+  }}
+>
+  {/* Render the layer's content */}
+</div>
+```
+
+### d. The “Loop” Background Video Layer
+
+**Issue Identified:**  
+Your Loop layer (background video) shows up in preview but is missing from StreamOutput. This likely occurs because the rendering logic is filtering it out or using different properties.
+
+**Fix:**  
+Double-check that your Loop layer’s properties (e.g., `layer.content.source`) are available in your context. Then, be sure to include it explicitly when mapping over layers:
+
+```tsx
+{layers
+  .filter(layer => layer.visible && layer.content?.source) // Ensure it appears in both views
+  .sort((a, b) => a.zIndex - b.zIndex)
+  .map(layer => (
+    <VideoOverlay
+      key={layer.id}
+      source={layer.content.source}
+      loop={layer.content.loop ?? true}
+      autoplay={layer.content.autoplay ?? true}
+      muted={layer.content.muted ?? true}
+      style={{
+        position: 'absolute',
+        left: `${(layer.position.xPercent / 100) * BASE_WIDTH}px`,
+        top: `${(layer.position.yPercent / 100) * BASE_HEIGHT}px`,
+        width: `${(layer.size.widthPercent / 100) * BASE_WIDTH}px`,
+        height: `${(layer.size.heightPercent / 100) * BASE_HEIGHT}px`,
+        zIndex: layer.zIndex
+      }}
+      schedule={layer.content.schedule || { enabled: false }}
+    />
+  ))}
+```
+
+Also, ensure that if the layer is meant to be editable (selectable in PreviewPanel), it isn’t set to “locked” accidentally.
+
+---
+
+## 3. Final Checklist & Persistence
+
+- **No Hidden Offsets:**  
+  Verify that no extraneous CSS (such as inner padding, margins, or borders) on either the preview container or the stream container is interfering with the absolute positioning. It’s best to set `padding: 0` and `margin: 0` on the main container elements.
+
+- **Single Layout Context:**  
+  Both PreviewPanel and StreamOutput should pull from the exact same context so that when you edit something in the preview, it immediately updates the full stream output.
+
+- **File Consistency:**  
+  Confirm that the same video asset file (for your Loop layer) is actually referenced in your context for both views. Sometimes multiple files might be uploaded or referenced inadvertently; double-check the URL or file path stored in your context.
+
+- **Testing and Debugging:**  
+  Add temporary `console.log` statements in both components to log the calculated positions/sizes. Verify that for a given layer, the percentage values are identical and that the conversion formulas yield the expected pixel values. For example:
+
+  ```js
+  console.log(`Layer ${layer.id}: x: ${(layer.position.xPercent / 100) * BASE_WIDTH}`);
+  ```
+
+- **Persistence:**  
+  If the rendered state seems to “reset” when you navigate away, ensure that your context is set up as a persistent singleton (or is rehydrated correctly on reload) so that a new instance isn’t created separately for preview and stream output.
+
+---
+
+## 4. In Summary
+
+1. **Use percentages exclusively in your layout context.**  
+2. **Apply the same conversion logic in both PreviewPanel and StreamOutput.**  
+   - Preview: Multiply by base resolution and then by a scale factor (e.g., 0.5).
+   - Stream: Multiply directly by the base resolution.
+3. **Ensure all layers (including the Loop video) are rendered uniformly in both views.**  
+4. **Remove any extraneous CSS offsets in your container elements.**
+5. **Double-check that the file paths and asset references in your context are consistent.**
+
+Implement these changes step-by-step. This way, whatever you arrange in the preview will show exactly in the stream output without being off-center or missing entirely.
+
+Let me know if you need further clarification or additional code details on any specific part. I'm here to help you get this working exactly as intended.

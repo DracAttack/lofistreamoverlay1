@@ -173,6 +173,7 @@ export function LayerEditor() {
           timerDirection,
           timerFormat,
           timerStartTime: timerDirection === 'up' ? new Date().toISOString() : undefined,
+          isFullscreen, // Store the fullscreen state in content
           
           // Scheduling options
           scheduleEnabled,
