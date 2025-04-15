@@ -71,27 +71,76 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
     const docAspect = document.documentElement.getAttribute('data-aspect-ratio');
     const aspectToUse = aspectRatio || docAspect || '16:9';
     
+    // Parse aspect ratio to get dimensions
+    const getAspectDimensions = (aspect: string) => {
+      if (aspect === '16:9') return { width: 16, height: 9 };
+      if (aspect === '4:3') return { width: 4, height: 3 };
+      if (aspect === '1:1') return { width: 1, height: 1 };
+      
+      // Parse custom ratio if provided in format "width:height"
+      const parts = aspect.split(':');
+      if (parts.length === 2) {
+        const width = parseInt(parts[0], 10);
+        const height = parseInt(parts[1], 10);
+        if (!isNaN(width) && !isNaN(height) && width > 0 && height > 0) {
+          return { width, height };
+        }
+      }
+      
+      // Default to 16:9 if invalid
+      return { width: 16, height: 9 };
+    };
+    
     // Function to calculate and apply the scaling factor
     const applyScaling = () => {
       if (!containerRef.current) return;
       
-      const parentWidth = containerRef.current.parentElement?.clientWidth || window.innerWidth;
+      // Get container and parent dimensions
+      const parentElement = containerRef.current.parentElement;
+      if (!parentElement) return;
       
-      // Calculate how much we need to scale down
-      const scaleFactor = Math.min(1, parentWidth / BASE_WIDTH);
+      const parentWidth = parentElement.clientWidth || window.innerWidth;
+      const parentHeight = parentElement.clientHeight || window.innerHeight;
       
-      // Apply the appropriate transform scale
+      // Get appropriate aspect ratio dimensions
+      const aspectDimensions = getAspectDimensions(aspectToUse);
+      const aspectRatio = aspectDimensions.width / aspectDimensions.height;
+      
+      // Calculate dimensions that fit within the parent while maintaining aspect ratio
+      let targetWidth = BASE_WIDTH;
+      let targetHeight = BASE_HEIGHT;
+      
+      // Adjust for different aspect ratios if needed
+      if (aspectRatio !== 16/9) {
+        // If not 16:9, adjust height but keep width as 1920px base
+        targetHeight = targetWidth / aspectRatio;
+      }
+      
+      // Calculate how much we need to scale
+      const widthScale = parentWidth / targetWidth;
+      const heightScale = parentHeight / targetHeight;
+      
+      // Use the smaller scale to ensure it fits entirely
+      const scaleFactor = Math.min(widthScale, heightScale, 1); // Never scale up past 1
+      
+      // Set base size for the output container (always 1920x1080 equivalent)
+      containerRef.current.style.width = `${targetWidth}px`;
+      containerRef.current.style.height = `${targetHeight}px`;
+      
+      // Apply scale transform
       containerRef.current.style.transform = `scale(${scaleFactor})`;
       
-      // Adjust the container height to account for the scaling
-      containerRef.current.style.height = `${BASE_HEIGHT}px`;
-      containerRef.current.style.width = `${BASE_WIDTH}px`;
+      // Calculate final scaled dimensions
+      const scaledWidth = targetWidth * scaleFactor;
+      const scaledHeight = targetHeight * scaleFactor;
       
-      // Set the parent container's height to match the scaled height
-      if (containerRef.current.parentElement) {
-        containerRef.current.parentElement.style.height = `${BASE_HEIGHT * scaleFactor}px`;
-        containerRef.current.parentElement.style.overflow = 'hidden';
-      }
+      // Apply to parent to ensure proper centering and spacing
+      parentElement.style.width = `${scaledWidth}px`;
+      parentElement.style.height = `${scaledHeight}px`;
+      parentElement.style.margin = '0 auto';
+      
+      // Log scaling information for debugging
+      console.log(`Stream scaling: ${scaleFactor.toFixed(3)} (${scaledWidth.toFixed(0)}x${scaledHeight.toFixed(0)})`);
     };
     
     // Apply scaling immediately
@@ -118,7 +167,7 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
         maxWidth: '100%',
         aspectRatio: aspectRatio === '4:3' ? '4/3' : aspectRatio === '1:1' ? '1/1' : '16/9',
         transform: 'scale(1)',
-        transformOrigin: 'top left'
+        transformOrigin: 'center'
       }}
     >
       {/* Render all layers in z-index order */}

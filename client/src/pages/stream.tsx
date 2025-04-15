@@ -96,14 +96,30 @@ export default function Stream() {
     }
   }, []);
 
+  // Add a class to body element to ensure proper styling
+  useEffect(() => {
+    document.body.classList.add('stream-page');
+    
+    return () => {
+      document.body.classList.remove('stream-page');
+    };
+  }, []);
+  
+  // Extract aspect ratio from query parameters
+  const getAspectRatio = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('aspect') || '16:9';
+  };
+  
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-hidden">
+    <div className="stream-container w-full h-screen flex items-center justify-center bg-black overflow-hidden">
       {!isConnected && !isLoading && (
         <div className="fixed top-0 left-0 right-0 bg-red-500 text-white text-center p-2 z-50">
           WebSocket disconnected. Layouts may not update in real-time.
         </div>
       )}
-      <StreamOutput />
+      {/* The StreamOutput component now uses the LayoutContext directly */}
+      <StreamOutput aspectRatio={getAspectRatio()} />
     </div>
   );
 }
