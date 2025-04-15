@@ -38,6 +38,7 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
   
   // Debug logs to check if we're actually receiving data
   console.log('StreamOutput component - total layers received:', layers?.length || 0);
+  console.log("All layers:", layers);
   console.log('StreamOutput component - layer summaries:', 
     (layers || []).map(l => ({ id: l.id, name: l.name, visible: l.visible, type: l.type })));
 
