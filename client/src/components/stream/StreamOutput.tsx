@@ -194,23 +194,46 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
       {visibleLayers.map(layer => {
         // Convert percentages to absolute pixel values for 1920x1080 canvas
         // This ensures correct positioning regardless of the preview panel scale
+        // Check if this layer should be in fullscreen mode
+        const isFullscreen = layer.content?.isFullscreen === true;
+        
+        // For debugging - log layer details, especially for Layer 1
+        if (layer.id === 1) {
+          console.log('Layer 1 rendering details:', { 
+            name: layer.name, 
+            source: layer.content?.source,
+            isFullscreen,
+            position: layer.position,
+            visible: layer.visible
+          });
+        }
+        
         const position = {
-          // Calculate absolute pixel positions from percentages for 1920x1080 canvas
-          left: layer.position.xPercent !== undefined 
-            ? `${(layer.position.xPercent / 100) * BASE_WIDTH}px`  // Convert percentage to absolute pixels
-            : `${layer.position.x}px`,
-          top: layer.position.yPercent !== undefined
-            ? `${(layer.position.yPercent / 100) * BASE_HEIGHT}px` // Convert percentage to absolute pixels
-            : `${layer.position.y}px`,
-          // Calculate absolute pixel dimensions from percentages for 1920x1080 canvas  
-          width: layer.position.width === 'auto' ? 'auto' : 
+          // If fullscreen, position at 0,0 and fill entire canvas
+          // Otherwise, calculate based on stored coordinates
+          left: isFullscreen ? '0px' : (
+            layer.position.xPercent !== undefined 
+              ? `${(layer.position.xPercent / 100) * BASE_WIDTH}px`  // Convert percentage to absolute pixels
+              : `${layer.position.x}px`
+          ),
+          top: isFullscreen ? '0px' : (
+            layer.position.yPercent !== undefined
+              ? `${(layer.position.yPercent / 100) * BASE_HEIGHT}px` // Convert percentage to absolute pixels
+              : `${layer.position.y}px`
+          ),
+          // Calculate dimensions - fullscreen covers entire canvas
+          width: isFullscreen ? '100%' : (
+            layer.position.width === 'auto' ? 'auto' : 
                 (layer.position.widthPercent !== undefined 
                   ? `${(layer.position.widthPercent / 100) * BASE_WIDTH}px` // Convert percentage to absolute pixels
-                  : `${layer.position.width}px`),
-          height: layer.position.height === 'auto' ? 'auto' : 
+                  : `${layer.position.width}px`)
+          ),
+          height: isFullscreen ? '100%' : (
+            layer.position.height === 'auto' ? 'auto' : 
                  (layer.position.heightPercent !== undefined
                   ? `${(layer.position.heightPercent / 100) * BASE_HEIGHT}px` // Convert percentage to absolute pixels
-                  : `${layer.position.height}px`),
+                  : `${layer.position.height}px`)
+          ),
           zIndex: layer.zIndex
         };
         

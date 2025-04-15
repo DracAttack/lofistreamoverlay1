@@ -344,18 +344,38 @@ export function PreviewPanel() {
           .filter(layer => layer.visible)
           .sort((a, b) => a.zIndex - b.zIndex)
           .map(layer => {
-            // Special case for the first layer (background)
-            const isBackground = layer === layers.filter(l => l.visible).sort((a, b) => a.zIndex - b.zIndex)[0];
+            // Check if this layer should be fullscreen
+            const isFullscreen = layer.content?.isFullscreen === true;
+            
+            // If layer ID is 1, log details to help debug
+            if (layer.id === 1) {
+              console.log('Layer 1 (Preview):', {
+                name: layer.name,
+                source: layer.content?.source,
+                fullscreen: isFullscreen,
+                position: layer.position,
+                visible: layer.visible
+              });
+            }
             
             // Use percentage-based positioning if available, otherwise fallback to pixels
             const style = {
-              // If percentage values are available, use them
-              left: layer.position.xPercent ? `${layer.position.xPercent}%` : `${layer.position.x}px`,
-              top: layer.position.yPercent ? `${layer.position.yPercent}%` : `${layer.position.y}px`,
-              width: layer.position.width === 'auto' ? 'auto' : 
-                     (layer.position.widthPercent ? `${layer.position.widthPercent}%` : `${layer.position.width}px`),
-              height: layer.position.height === 'auto' ? 'auto' : 
-                      (layer.position.heightPercent ? `${layer.position.heightPercent}%` : `${layer.position.height}px`),
+              // If layer is fullscreen, position at 0,0 with 100% width/height
+              // Otherwise, use standard coordinates
+              left: isFullscreen ? '0' : (
+                layer.position.xPercent ? `${layer.position.xPercent}%` : `${layer.position.x}px`
+              ),
+              top: isFullscreen ? '0' : (
+                layer.position.yPercent ? `${layer.position.yPercent}%` : `${layer.position.y}px`
+              ),
+              width: isFullscreen ? '100%' : (
+                layer.position.width === 'auto' ? 'auto' : 
+                (layer.position.widthPercent ? `${layer.position.widthPercent}%` : `${layer.position.width}px`)
+              ),
+              height: isFullscreen ? '100%' : (
+                layer.position.height === 'auto' ? 'auto' : 
+                (layer.position.heightPercent ? `${layer.position.heightPercent}%` : `${layer.position.height}px`)
+              ),
               zIndex: layer.zIndex,
               cursor: isDragging && dragTarget === layer.id ? 'grabbing' : 'grab',
               position: 'absolute' as 'absolute',
@@ -364,7 +384,7 @@ export function PreviewPanel() {
             return (
               <div 
                 key={layer.id} 
-                style={isBackground ? { ...style, left: '0', top: '0', width: '100%', height: '100%' } : style}
+                style={style}
                 onMouseDown={(e) => startDrag(e, layer.id)}
                 className={`${selectedLayer?.id === layer.id ? 'outline outline-2 outline-primary' : ''}`}
               >
@@ -420,7 +440,7 @@ export function PreviewPanel() {
                           style={{
                             width: '100%',
                             height: '100%',
-                            objectFit: isBackground ? 'cover' : 'contain'
+                            objectFit: isFullscreen ? 'cover' : 'contain'
                           }}
                         />
                       </div>
@@ -439,8 +459,8 @@ export function PreviewPanel() {
                       </div>
                     )}
                   </>
-                ) : isBackground ? (
-                  // Empty background layer
+                ) : isFullscreen ? (
+                  // Fullscreen layer with no content
                   <div 
                     className="w-full h-full"
                     style={{ backgroundColor: layer.style.backgroundColor || '#111' }}
@@ -460,8 +480,8 @@ export function PreviewPanel() {
                   </div>
                 )}
 
-                {/* Resize handles for selected layers */}
-                {selectedLayer?.id === layer.id && !isBackground && (
+                {/* Resize handles for selected layers (hide for fullscreen layers) */}
+                {selectedLayer?.id === layer.id && !isFullscreen && (
                   <>
                     {/* Layer label */}
                     <div className="absolute -top-6 left-0 bg-primary text-xs text-white px-2 py-1 rounded">
