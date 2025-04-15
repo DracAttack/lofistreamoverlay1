@@ -127,6 +127,13 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
       const layerToUpdate = layers.find(layer => layer.id === layerId);
       if (!layerToUpdate) return;
 
+      // Don't make unnecessary updates if the position hasn't changed
+      if (Object.entries(position).every(([key, value]) => 
+        layerToUpdate.position[key as keyof Layer['position']] === value
+      )) {
+        return;
+      }
+
       // Update the layer locally first
       const updatedLayer = {
         ...layerToUpdate,
@@ -136,24 +143,32 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
         }
       };
 
-      // Update local state
-      const updatedLayers = layers.map(layer => 
-        layer.id === layerId ? updatedLayer : layer
+      // Update local state immediately
+      setLayers(prevLayers => 
+        prevLayers.map(layer => layer.id === layerId ? updatedLayer : layer)
       );
-      
-      setLayers(updatedLayers);
 
-      // Send update to server - both for the individual layer and active layout
-      await apiRequest('PUT', `/api/layers/${layerId}`, { 
-        position: updatedLayer.position 
-      });
+      // Send update to server for the individual layer only
+      // This prevents a race condition with the active layout sync
+      try {
+        await apiRequest('PUT', `/api/layers/${layerId}`, { 
+          position: updatedLayer.position 
+        });
       
-      // Additionally sync to active layout to ensure consistent state across clients
-      await apiRequest('POST', '/api/active-layout/sync', {
-        layers: updatedLayers
-      });
-      
-      console.log('Position update synced to active layout');
+        // Wait for the first request to complete before syncing to avoid conflicts
+        // Get the latest layers state for the sync
+        const currentLayers = layers.map(layer => 
+          layer.id === layerId ? updatedLayer : layer
+        );
+        
+        await apiRequest('POST', '/api/active-layout/sync', {
+          layers: currentLayers
+        });
+      } catch (apiError) {
+        console.error('API error while updating position:', apiError);
+        // If the server update fails, revert the local change
+        setLayers(prevLayers => [...prevLayers]);
+      }
     } catch (error) {
       console.error('Failed to update layer position:', error);
     }

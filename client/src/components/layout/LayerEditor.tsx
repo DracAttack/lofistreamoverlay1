@@ -73,11 +73,21 @@ export function LayerEditor() {
       setTimerFormat(selectedLayer.content?.timerFormat || 'mm:ss');
       
       // Load scheduling settings
-      setScheduleEnabled(selectedLayer.content?.scheduleEnabled || false);
+      // Make sure we load scheduling information properly
+      setScheduleEnabled(selectedLayer.content?.scheduleEnabled === true);
       setScheduleInterval(selectedLayer.content?.scheduleInterval || 600);
       setScheduleDuration(selectedLayer.content?.scheduleDuration || 5);
       setScheduleAutoHide(selectedLayer.content?.scheduleAutoHide !== false); // default to true
       setScheduleLoop(selectedLayer.content?.scheduleLoop !== false); // default to true
+      
+      // Debug log
+      console.log("LayerEditor - Loading schedule settings:", {
+        enabled: selectedLayer.content?.scheduleEnabled,
+        interval: selectedLayer.content?.scheduleInterval,
+        duration: selectedLayer.content?.scheduleDuration,
+        autoHide: selectedLayer.content?.scheduleAutoHide,
+        loop: selectedLayer.content?.scheduleLoop
+      });
     }
   }, [selectedLayer]);
 

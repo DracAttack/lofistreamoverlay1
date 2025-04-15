@@ -58,16 +58,36 @@ export function VideoOverlay({
   
   // Function to activate the overlay - defined outside useEffect to avoid recreation
   const activateOverlay = () => {
-    console.log("Activating overlay");
+    console.log("Activating overlay for source:", source);
     setIsVisible(true);
     setScheduleActive(true);
     
-    // Reset video to beginning
-    if (videoRef.current) {
-      videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(err => {
-        console.error("Error playing video:", err);
-      });
+    // Reset video to beginning if we have a video and a source
+    if (videoRef.current && source) {
+      try {
+        videoRef.current.currentTime = 0;
+        
+        // Create a promise to detect when the video is ready
+        const playPromise = videoRef.current.play();
+        
+        if (playPromise !== undefined) {
+          playPromise.then(() => {
+            console.log("Video playback started successfully");
+          }).catch(err => {
+            console.error("Error playing video:", err);
+            // Try once more after a short delay
+            setTimeout(() => {
+              if (videoRef.current) {
+                videoRef.current.play().catch(retryErr => {
+                  console.error("Retry play failed:", retryErr);
+                });
+              }
+            }, 500);
+          });
+        }
+      } catch (err) {
+        console.error("Error in video activation:", err);
+      }
     }
     
     // Schedule hide after duration if autoHide is enabled
@@ -77,12 +97,17 @@ export function VideoOverlay({
         clearTimeout(timeoutId);
       }
       
+      // Get the correct duration value with fallback
+      const duration = typeof schedule.duration === 'number' ? schedule.duration : 5;
+      
+      console.log(`Scheduling hide after ${duration} seconds`);
+      
       // Set new timeout to hide the overlay
       const newTimeoutId = setTimeout(() => {
-        console.log("Hiding overlay after duration", schedule.duration);
+        console.log("Hiding overlay after duration:", duration);
         setIsVisible(false);
         setScheduleActive(false);
-      }, (schedule.duration || 5) * 1000);
+      }, duration * 1000);
       
       setTimeoutId(newTimeoutId);
     }
@@ -95,6 +120,13 @@ export function VideoOverlay({
   useEffect(() => {
     // Don't run scheduling in preview mode or when scheduling is disabled
     if (preview || !schedule.enabled) {
+      console.log("VideoOverlay: Schedule disabled or in preview mode");
+      
+      // If in preview mode or disabled but the source exists, make sure it's visible
+      if (source && (preview || !schedule.autoHide)) {
+        setIsVisible(true);
+      }
+      
       return;
     }
 
@@ -103,14 +135,13 @@ export function VideoOverlay({
       interval: schedule.interval,
       duration: schedule.duration,
       autoHide: schedule.autoHide,
-      loop
+      loop,
+      source
     });
     
-    // Immediately activate on first mount
-    if (lastActivation === 0) {
-      console.log("VideoOverlay: First activation");
-      activateOverlay();
-    }
+    // Immediately activate on first mount or when settings change
+    console.log("VideoOverlay: Activating on schedule setup");
+    activateOverlay();
     
     // Clear any existing interval
     if (intervalId) {
@@ -121,16 +152,21 @@ export function VideoOverlay({
     const newIntervalId = setInterval(() => {
       const now = Date.now();
       const elapsedSeconds = (now - lastActivation) / 1000;
+      const intervalTime = schedule.interval || 600;
       
-      console.log("VideoOverlay: Checking schedule:", { 
-        elapsedSeconds, 
-        interval: schedule.interval,
-        scheduleActive,
-        isVisible
-      });
+      // Only log every 5 seconds to reduce console spam
+      if (Math.floor(elapsedSeconds) % 5 === 0) {
+        console.log("VideoOverlay: Checking schedule:", { 
+          elapsedSeconds, 
+          interval: intervalTime,
+          scheduleActive,
+          isVisible,
+          timeToNext: intervalTime - elapsedSeconds
+        });
+      }
       
       // Only activate if the interval has passed AND the overlay is not currently active
-      if (elapsedSeconds >= (schedule.interval || 600) && !scheduleActive) {
+      if (elapsedSeconds >= intervalTime && !scheduleActive) {
         console.log("VideoOverlay: Time to reactivate overlay after interval");
         activateOverlay();
       }
@@ -147,7 +183,7 @@ export function VideoOverlay({
         clearTimeout(timeoutId);
       }
     };
-  }, [schedule.enabled, schedule.interval, schedule.duration, schedule.autoHide, preview]);
+  }, [schedule.enabled, schedule.interval, schedule.duration, schedule.autoHide, preview, source]);
   
   // Handle video end for non-looping videos in scheduled mode
   const handleVideoEnded = () => {
