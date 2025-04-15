@@ -35,6 +35,11 @@ export interface LayerContent {
   source?: string;
   text?: string;
   rotationInterval?: number;
+  timerEnabled?: boolean;
+  timerDuration?: number; // in seconds
+  timerDirection?: 'up' | 'down';
+  timerStartTime?: string; // ISO string
+  timerFormat?: 'hh:mm:ss' | 'mm:ss' | 'ss';
   [key: string]: any;
 }
 

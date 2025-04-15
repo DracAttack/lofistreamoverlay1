@@ -20,6 +20,10 @@ export function LayerEditor() {
   const [zIndex, setZIndex] = useState(0);
   const [sourceOption, setSourceOption] = useState("");
   const [rotationInterval, setRotationInterval] = useState(30);
+  const [timerEnabled, setTimerEnabled] = useState(false);
+  const [timerDuration, setTimerDuration] = useState(300); // 5 minutes default
+  const [timerDirection, setTimerDirection] = useState<'up' | 'down'>('down');
+  const [timerFormat, setTimerFormat] = useState<'hh:mm:ss' | 'mm:ss' | 'ss'>('mm:ss');
   const { toast } = useToast();
   
   // Fetch quotes for the quote selector
@@ -47,6 +51,12 @@ export function LayerEditor() {
       setZIndex(selectedLayer.zIndex || 10);
       setSourceOption(selectedLayer.content?.source || "");
       setRotationInterval(selectedLayer.content?.rotationInterval || 30);
+      
+      // Load timer settings
+      setTimerEnabled(selectedLayer.content?.timerEnabled || false);
+      setTimerDuration(selectedLayer.content?.timerDuration || 300);
+      setTimerDirection(selectedLayer.content?.timerDirection || 'down');
+      setTimerFormat(selectedLayer.content?.timerFormat || 'mm:ss');
     }
   }, [selectedLayer]);
 
@@ -99,7 +109,12 @@ export function LayerEditor() {
         content: {
           ...selectedLayer.content,
           source: sourceOption,
-          rotationInterval
+          rotationInterval,
+          timerEnabled,
+          timerDuration,
+          timerDirection,
+          timerFormat,
+          timerStartTime: timerDirection === 'up' ? new Date().toISOString() : undefined
         },
         zIndex
       };
@@ -283,6 +298,68 @@ export function LayerEditor() {
           selectedAsset={sourceOption}
           onAssetSelect={(assetPath) => setSourceOption(assetPath)}
         />
+      </div>
+
+      {/* Timer Settings */}
+      <div className="mb-4 border-t border-secondary/30 pt-4">
+        <div className="flex items-center justify-between mb-3">
+          <label className="font-semibold text-sm">Timer Settings</label>
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-foreground/70">Enable Timer</span>
+            <input 
+              type="checkbox" 
+              checked={timerEnabled} 
+              onChange={(e) => setTimerEnabled(e.target.checked)}
+              className="h-4 w-4 rounded border-secondary"
+            />
+          </div>
+        </div>
+        
+        {timerEnabled && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-foreground/70 mb-1">Duration (seconds)</label>
+              <input 
+                type="number" 
+                value={timerDuration} 
+                onChange={(e) => setTimerDuration(parseInt(e.target.value, 10) || 0)}
+                min="1"
+                className="w-full bg-background border border-secondary/30 rounded px-2 py-1 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-foreground/70 mb-1">Direction</label>
+              <select 
+                className="w-full bg-background border border-secondary/30 rounded px-2 py-1 text-sm"
+                value={timerDirection}
+                onChange={(e) => setTimerDirection(e.target.value as 'up' | 'down')}
+              >
+                <option value="down">Count Down</option>
+                <option value="up">Count Up</option>
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs text-foreground/70 mb-1">Display Format</label>
+              <select 
+                className="w-full bg-background border border-secondary/30 rounded px-2 py-1 text-sm"
+                value={timerFormat}
+                onChange={(e) => setTimerFormat(e.target.value as 'hh:mm:ss' | 'mm:ss' | 'ss')}
+              >
+                <option value="hh:mm:ss">Hours:Minutes:Seconds (00:00:00)</option>
+                <option value="mm:ss">Minutes:Seconds (00:00)</option>
+                <option value="ss">Seconds Only (00)</option>
+              </select>
+            </div>
+            
+            <div className="col-span-2 mt-2 bg-background/50 rounded p-2 text-xs text-foreground/70">
+              {timerDirection === 'down' ? (
+                <p>Timer will count down from {timerDuration} seconds to 0.</p>
+              ) : (
+                <p>Timer will count up from 0 seconds when the stream starts.</p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Save Button */}

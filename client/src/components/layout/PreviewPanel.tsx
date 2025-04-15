@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLayoutContext } from "@/context/LayoutContext";
 import { SpotifyWidget } from "../stream/SpotifyWidget";
 import { QuoteOverlay } from "../stream/QuoteOverlay";
+import { TimerOverlay } from "../stream/TimerOverlay";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
@@ -310,19 +311,29 @@ export function PreviewPanel() {
                   <>
                     {/\.(mp4|webm|ogg|mov)$/i.test(layer.content.source) ? (
                       // Video content
-                      <video 
-                        src={layer.content.source}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: isBackground ? 'cover' : 'contain',
-                          backgroundColor: layer.style.backgroundColor || 'transparent',
-                          borderRadius: layer.style.borderRadius || '0',
-                        }}
-                        autoPlay
-                        loop
-                        muted
-                      />
+                      <div style={{
+                        width: '100%', 
+                        height: '100%', 
+                        position: 'relative',
+                        overflow: 'hidden',
+                        borderRadius: layer.style.borderRadius || '0',
+                      }}>
+                        <video 
+                          src={layer.content.source}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: isBackground ? 'cover' : 'contain',
+                            backgroundColor: /\.webm$/i.test(layer.content.source) ? 'transparent' : (layer.style.backgroundColor || 'transparent'),
+                            borderRadius: layer.style.borderRadius || '0',
+                            mixBlendMode: /\.webm$/i.test(layer.content.source) ? 'normal' : undefined,
+                          }}
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                        />
+                      </div>
                     ) : /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(layer.content.source) ? (
                       // Image content
                       <div
