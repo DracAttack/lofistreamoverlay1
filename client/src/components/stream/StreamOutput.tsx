@@ -141,6 +141,26 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
       
       // Log scaling information for debugging
       console.log(`Stream scaling: ${scaleFactor.toFixed(3)} (${scaledWidth.toFixed(0)}x${scaledHeight.toFixed(0)})`);
+      
+      // Log context about coordinate system for debugging
+      if (visibleLayers.length > 0) {
+        const sampleLayer = visibleLayers[0];
+        console.log('Coordinate conversion example:', {
+          layer: sampleLayer.name,
+          sourcePercent: {
+            x: sampleLayer.position.xPercent,
+            y: sampleLayer.position.yPercent,
+            width: sampleLayer.position.widthPercent,
+            height: sampleLayer.position.heightPercent
+          },
+          convertedPixels: {
+            x: sampleLayer.position.xPercent !== undefined ? (sampleLayer.position.xPercent / 100) * BASE_WIDTH : sampleLayer.position.x,
+            y: sampleLayer.position.yPercent !== undefined ? (sampleLayer.position.yPercent / 100) * BASE_HEIGHT : sampleLayer.position.y,
+            width: sampleLayer.position.widthPercent !== undefined ? (sampleLayer.position.widthPercent / 100) * BASE_WIDTH : sampleLayer.position.width,
+            height: sampleLayer.position.heightPercent !== undefined ? (sampleLayer.position.heightPercent / 100) * BASE_HEIGHT : sampleLayer.position.height
+          }
+        });
+      }
     };
     
     // Apply scaling immediately
@@ -172,15 +192,25 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
     >
       {/* Render all layers in z-index order */}
       {visibleLayers.map(layer => {
-        // Set up position styles using percentage values if available, fallback to pixels
+        // Convert percentages to absolute pixel values for 1920x1080 canvas
+        // This ensures correct positioning regardless of the preview panel scale
         const position = {
-          // If percentage values are available, use them for consistent cross-view positioning
-          left: layer.position.xPercent ? `${layer.position.xPercent}%` : `${layer.position.x}px`,
-          top: layer.position.yPercent ? `${layer.position.yPercent}%` : `${layer.position.y}px`,
+          // Calculate absolute pixel positions from percentages for 1920x1080 canvas
+          left: layer.position.xPercent !== undefined 
+            ? `${(layer.position.xPercent / 100) * BASE_WIDTH}px`  // Convert percentage to absolute pixels
+            : `${layer.position.x}px`,
+          top: layer.position.yPercent !== undefined
+            ? `${(layer.position.yPercent / 100) * BASE_HEIGHT}px` // Convert percentage to absolute pixels
+            : `${layer.position.y}px`,
+          // Calculate absolute pixel dimensions from percentages for 1920x1080 canvas  
           width: layer.position.width === 'auto' ? 'auto' : 
-                (layer.position.widthPercent ? `${layer.position.widthPercent}%` : `${layer.position.width}px`),
+                (layer.position.widthPercent !== undefined 
+                  ? `${(layer.position.widthPercent / 100) * BASE_WIDTH}px` // Convert percentage to absolute pixels
+                  : `${layer.position.width}px`),
           height: layer.position.height === 'auto' ? 'auto' : 
-                 (layer.position.heightPercent ? `${layer.position.heightPercent}%` : `${layer.position.height}px`),
+                 (layer.position.heightPercent !== undefined
+                  ? `${(layer.position.heightPercent / 100) * BASE_HEIGHT}px` // Convert percentage to absolute pixels
+                  : `${layer.position.height}px`),
           zIndex: layer.zIndex
         };
         
@@ -306,12 +336,21 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
         <div 
           className="absolute"
           style={{
-            left: spotifyLayer.position.xPercent ? `${spotifyLayer.position.xPercent}%` : `${spotifyLayer.position.x}px`,
-            top: spotifyLayer.position.yPercent ? `${spotifyLayer.position.yPercent}%` : `${spotifyLayer.position.y}px`,
+            // Use same pixel conversion for Spotify widget (consistency with other layers)
+            left: spotifyLayer.position.xPercent !== undefined 
+              ? `${(spotifyLayer.position.xPercent / 100) * BASE_WIDTH}px`
+              : `${spotifyLayer.position.x}px`,
+            top: spotifyLayer.position.yPercent !== undefined
+              ? `${(spotifyLayer.position.yPercent / 100) * BASE_HEIGHT}px`
+              : `${spotifyLayer.position.y}px`,
             width: spotifyLayer.position.width === 'auto' ? 'auto' : 
-                  (spotifyLayer.position.widthPercent ? `${spotifyLayer.position.widthPercent}%` : `${spotifyLayer.position.width}px`),
+                  (spotifyLayer.position.widthPercent !== undefined
+                    ? `${(spotifyLayer.position.widthPercent / 100) * BASE_WIDTH}px`
+                    : `${spotifyLayer.position.width}px`),
             height: spotifyLayer.position.height === 'auto' ? 'auto' : 
-                   (spotifyLayer.position.heightPercent ? `${spotifyLayer.position.heightPercent}%` : `${spotifyLayer.position.height}px`),
+                   (spotifyLayer.position.heightPercent !== undefined
+                    ? `${(spotifyLayer.position.heightPercent / 100) * BASE_HEIGHT}px`
+                    : `${spotifyLayer.position.height}px`),
             zIndex: spotifyLayer.zIndex,
           }}
         >

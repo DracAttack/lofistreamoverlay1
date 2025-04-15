@@ -1,0 +1,116 @@
+Issue Identified:
+The PreviewPanel now correctly uses percentage-based coordinates (xPercent, yPercent) for updates and immediate visual feedback.
+
+However, the StreamOutput is still interpreting these coordinates directly in pixel-based (1920x1080) coordinates without properly converting the percentage values.
+
+Why it matters:
+Your preview UI correctly transforms coordinates into a percentage of the preview area to scale responsively. But the Stream Output view expects absolute pixel coordinates at full 1920x1080 resolution. This mismatch between percentage (PreviewPanel) and pixel (StreamOutput) interpretation leads to incorrect positioning of assets.
+
+Recommended Fix (Explicitly What You Need to Do):
+Step 1: Ensure the layout context stores everything in percentage coordinates:
+Update your LayoutContext.tsx logic to clearly indicate all stored positions/sizes are percentage-based:
+
+Example snippet (add comments for clarity):
+
+typescript
+Copy
+Edit
+// In LayoutContext.tsx, ensure all positions/sizes stored as percentages:
+updateLayerPosition: (layerId, positionPercent) => {
+  setLayers(prevLayers =>
+    prevLayers.map(layer =>
+      layer.id === layerId
+        ? { ...layer, position: { ...layer.position, ...positionPercent } }
+        : layer
+    )
+  );
+}
+Step 2: Convert percentage-based values into pixel-based values for StreamOutput:
+Modify your StreamOutput.tsx clearly:
+
+typescript
+Copy
+Edit
+// StreamOutput.tsx
+const BASE_WIDTH = 1920;
+const BASE_HEIGHT = 1080;
+
+const streamPosition = {
+  x: (layer.position.xPercent / 100) * BASE_WIDTH,
+  y: (layer.position.yPercent / 100) * BASE_HEIGHT,
+};
+
+const streamSize = {
+  width: (layer.size.widthPercent / 100) * BASE_WIDTH,
+  height: (layer.size.heightPercent / 100) * BASE_HEIGHT,
+};
+Render the layer accordingly:
+
+jsx
+Copy
+Edit
+<div key={layer.id} style={{
+  position: 'absolute',
+  left: streamPosition.x,
+  top: streamPosition.y,
+  width: streamSize.width,
+  height: streamSize.height,
+  zIndex: layer.zIndex,
+}}>
+  {/* content rendering */}
+</div>
+Step 3: Ensure resizing functionality is added to your Test Layers:
+Right now your Test Layers appear fixed-size because the PreviewPanel lacks resizing logic implementation. Add resizing handles and update layer dimensions similarly using percentages:
+
+In PreviewPanel.tsx example resizing implementation:
+
+typescript
+Copy
+Edit
+const startResize = (e, layerId, direction) => {
+  e.stopPropagation();
+  setIsResizing(true);
+  setResizeDirection(direction);
+  setDragTarget(layerId);
+};
+
+const handleResize = (e) => {
+  if (!isResizing || !dragTarget || !previewRef.current) return;
+
+  const rect = previewRef.current.getBoundingClientRect();
+  const layer = layers.find(l => l.id === dragTarget);
+  if (!layer) return;
+
+  let newWidthPercent = layer.size.widthPercent;
+  let newHeightPercent = layer.size.heightPercent;
+
+  if (resizeDirection.includes('right')) {
+    newWidthPercent = ((e.clientX - rect.left) / rect.width) * 100 - layer.position.xPercent;
+  }
+  if (resizeDirection.includes('bottom')) {
+    newHeightPercent = ((e.clientY - rect.top) / rect.height) * 100 - layer.position.yPercent;
+  }
+
+  updateLayerPosition(layer.id, {
+    size: { widthPercent: newWidthPercent, heightPercent: newHeightPercent }
+  });
+};
+
+const endResize = () => {
+  setIsResizing(false);
+  setResizeDirection(null);
+};
+Attach resizing handles to layer elements accordingly, triggering these functions on mouse events.
+
+Summary of Implementation:
+Context: Percentage-based positions/sizes
+
+PreviewPanel: Percentage for drag/resize operations
+
+StreamOutput: Converts percentages → absolute pixels (1920x1080)
+
+Doing exactly this will:
+
+✅ Align your Stream Output and Preview UI precisely
+✅ Enable functional resizing of layers
+✅ Eliminate visual discrepancies completely
