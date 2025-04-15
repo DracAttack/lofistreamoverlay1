@@ -52,6 +52,31 @@ export function VideoOverlay({
     }
   }, [source]);
   
+  // Ensure video plays when it becomes visible
+  useEffect(() => {
+    if (videoRef.current && isVisible && source) {
+      // For stream output, we need to force reload and play the video
+      // whenever visibility changes to ensure consistent playback
+      videoRef.current.load();
+      
+      // Use a slight delay to ensure DOM is ready
+      const playAttempt = setTimeout(() => {
+        if (videoRef.current) {
+          const playPromise = videoRef.current.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(err => {
+              console.log('Auto-play prevented by browser (normal if no user interaction):', err);
+              // This is expected in some browsers without user interaction
+              // We still have the autoplay attribute as backup
+            });
+          }
+        }
+      }, 50);
+      
+      return () => clearTimeout(playAttempt);
+    }
+  }, [isVisible, source]);
+  
   // We intentionally don't use visibilitychange event handlers anymore
   // This would cause problems in OBS/SLOBS where the browser source is always active
   // but the tab may not be focused, leading to paused videos when the tab is inactive
@@ -78,15 +103,26 @@ export function VideoOverlay({
       // Show the overlay
       setIsVisible(true);
       
-      // Reset and play the video from the beginning
+      // Reset and play the video from the beginning - IMPORTANT
+      // We use load() instead of just setting currentTime to ensure the video
+      // completely restarts, even if it's the same file being played again
       if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.currentTime = 0;
+        // Complete reload for guaranteed restart
+        videoRef.current.load();
         
-        // Play with error handling
-        videoRef.current.play().catch(err => {
-          console.error("Error playing scheduled video:", err);
-        });
+        // Use setTimeout to ensure the load() has completed
+        setTimeout(() => {
+          if (videoRef.current) {
+            // Play with error handling
+            const playPromise = videoRef.current.play();
+            
+            if (playPromise !== undefined) {
+              playPromise.catch(err => {
+                console.error("Error playing scheduled video:", err);
+              });
+            }
+          }
+        }, 50);
       }
       
       // If autoHide is enabled, schedule the hide operation
@@ -129,11 +165,23 @@ export function VideoOverlay({
   // Preview mode controls
   const handlePlay = () => {
     if (videoRef.current) {
-      videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(err => {
-        console.error("Error playing video in preview:", err);
-      });
+      // Make sure the video is visible first
       setIsVisible(true);
+      
+      // Force complete reload for reliable restart
+      videoRef.current.load();
+      
+      // Use setTimeout to ensure the load() has completed
+      setTimeout(() => {
+        if (videoRef.current) {
+          const playPromise = videoRef.current.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(err => {
+              console.error("Error playing video in preview:", err);
+            });
+          }
+        }
+      }, 50);
     }
   };
   
