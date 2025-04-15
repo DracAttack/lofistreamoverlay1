@@ -11,7 +11,6 @@ export function LayerPanel() {
   const { toast } = useToast();
   const [addingLayer, setAddingLayer] = useState(false);
   const [newLayerName, setNewLayerName] = useState("");
-  const [newLayerType, setNewLayerType] = useState("quote");
 
   const handleSelectLayer = (layer: Layer) => {
     setSelectedLayer(layer);
@@ -102,7 +101,6 @@ export function LayerPanel() {
       setLayers([...layers, newLayer]);
       setAddingLayer(false);
       setNewLayerName("");
-      setNewLayerType("generic");
       
       queryClient.invalidateQueries({ queryKey: ['/api/layers'] });
       
@@ -260,8 +258,8 @@ export function LayerPanel() {
                   <div className="flex items-center space-x-2">
                     {layer.content.source ? (
                       <span className="px-2 py-0.5 bg-background rounded text-xs text-secondary">
-                        {layer.content.source.split('/').pop()?.substring(0, 15) || "Asset set"}
-                        {layer.content.source.split('/').pop()?.length > 15 ? "..." : ""}
+                        {(layer.content.source.split('/').pop() || "").substring(0, 15) || "Asset set"}
+                        {((layer.content.source.split('/').pop() || "").length > 15) ? "..." : ""}
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 bg-background rounded text-xs text-foreground/50">

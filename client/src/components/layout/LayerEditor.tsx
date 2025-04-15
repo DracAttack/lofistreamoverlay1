@@ -14,7 +14,8 @@ export function LayerEditor() {
   const [style, setStyle] = useState({ 
     backgroundColor: 'rgba(0,0,0,0.75)', 
     textColor: '#00FFFF',
-    borderRadius: '8px'
+    borderRadius: '8px',
+    backdropBlur: 'backdrop-blur-sm'
   });
   const [zIndex, setZIndex] = useState(0);
   const [sourceOption, setSourceOption] = useState("");
@@ -40,7 +41,8 @@ export function LayerEditor() {
       setStyle({
         backgroundColor: selectedLayer.style.backgroundColor || 'rgba(0,0,0,0.75)',
         textColor: selectedLayer.style.textColor || '#00FFFF',
-        borderRadius: selectedLayer.style.borderRadius || '8px'
+        borderRadius: selectedLayer.style.borderRadius || '8px',
+        backdropBlur: selectedLayer.style.backdropBlur || 'backdrop-blur-sm'
       });
       setZIndex(selectedLayer.zIndex || 10);
       setSourceOption(selectedLayer.content?.source || "");
