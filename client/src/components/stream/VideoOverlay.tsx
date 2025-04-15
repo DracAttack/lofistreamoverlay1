@@ -164,7 +164,7 @@ export function VideoOverlay({
     setLastActivation(Date.now());
   };
   
-  // Schedule activation logic - only runs when not in preview mode
+  // Clean and reliable schedule activation logic with clear intervals
   useEffect(() => {
     // Don't run scheduling in preview mode or when scheduling is disabled
     if (preview || !schedule.enabled) {
@@ -191,6 +191,17 @@ export function VideoOverlay({
       return;
     }
 
+    // Clean up any existing timers to avoid duplication
+    if (intervalId) {
+      clearInterval(intervalId);
+      setIntervalId(null);
+    }
+    
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      setTimeoutId(null);
+    }
+
     console.log("VideoOverlay: Schedule settings initialized:", {
       enabled: schedule.enabled,
       interval: schedule.interval,
@@ -200,39 +211,52 @@ export function VideoOverlay({
       source
     });
     
-    // Immediately activate on first mount or when settings change
-    console.log("VideoOverlay: Activating on schedule setup");
-    activateOverlay();
-    
-    // Clear any existing interval
-    if (intervalId) {
-      clearInterval(intervalId);
-    }
-    
-    // Set up new interval for scheduled activation
-    const newIntervalId = setInterval(() => {
-      const now = Date.now();
-      const elapsedSeconds = (now - lastActivation) / 1000;
-      const intervalTime = schedule.interval || 600;
+    // Define a clean and reliable show/hide handler
+    const handleShow = () => {
+      // Show the overlay
+      setIsVisible(true);
+      setScheduleActive(true);
       
-      // Only log every 5 seconds to reduce console spam
-      if (Math.floor(elapsedSeconds) % 5 === 0) {
-        console.log("VideoOverlay: Checking schedule:", { 
-          elapsedSeconds, 
-          interval: intervalTime,
-          scheduleActive,
-          isVisible,
-          timeToNext: intervalTime - elapsedSeconds
+      // Always restart video from beginning
+      if (videoRef.current) {
+        console.log("Restarting video for scheduled appearance");
+        videoRef.current.currentTime = 0;
+        videoRef.current.play().catch(err => {
+          console.error("Error playing video on schedule:", err);
         });
       }
       
-      // Only activate if the interval has passed AND the overlay is not currently active
-      if (elapsedSeconds >= intervalTime && !scheduleActive) {
-        console.log("VideoOverlay: Time to reactivate overlay after interval");
-        activateOverlay();
+      // Set timeout to hide after duration seconds
+      if (schedule.autoHide) {
+        // Clear any existing timeout first
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        
+        const duration = schedule.duration || 5;
+        console.log(`Scheduling hide after ${duration} seconds`);
+        
+        const newTimeoutId = setTimeout(() => {
+          console.log(`Hiding overlay after ${duration} seconds duration`);
+          setIsVisible(false);
+          setScheduleActive(false);
+        }, duration * 1000);
+        
+        setTimeoutId(newTimeoutId);
       }
-    }, 1000); // Check every second
+      
+      // Update last activation time
+      setLastActivation(Date.now());
+    };
     
+    // Show immediately on first mount
+    handleShow();
+    
+    // Set up interval for recurring shows
+    const interval = (schedule.interval || 600) * 1000; // Convert to milliseconds
+    console.log(`Setting up interval every ${interval/1000} seconds`);
+    
+    const newIntervalId = setInterval(handleShow, interval);
     setIntervalId(newIntervalId);
     
     // Cleanup function

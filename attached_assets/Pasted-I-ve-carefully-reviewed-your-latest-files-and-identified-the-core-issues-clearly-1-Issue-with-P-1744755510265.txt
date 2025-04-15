@@ -1,0 +1,124 @@
+I've carefully reviewed your latest files and identified the core issues clearly:
+
+✅ 1. Issue with Positioning/Scaling (Why it got worse)
+Your PreviewPanel and StreamOutput still don't align because the PreviewPanel calculates positions in raw pixels, whereas the StreamOutput expects percentages. This discrepancy causes increasingly off-center placement.
+
+Specifically:
+
+PreviewPanel currently calculates layer positions directly in pixels from mouse events.
+
+StreamOutput treats these positions as percentages (or improperly converts).
+
+Quick Corrective Action (Fix This Immediately):
+In your PreviewPanel.tsx, ensure you explicitly store positions and sizes as percentages. Modify your drag/resize handlers like this:
+
+tsx
+Copy
+Edit
+const handleDrag = (e: React.MouseEvent) => {
+  if (!isDragging || dragTarget === null || !previewRef.current) return;
+  const rect = previewRef.current.getBoundingClientRect();
+  const xPercent = ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100;
+  const yPercent = ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100;
+
+  updateLayerPosition(dragTarget, { xPercent, yPercent });
+};
+Then ensure StreamOutput converts percentages back to pixels clearly:
+
+tsx
+Copy
+Edit
+const streamPosition = {
+  x: (layer.position.xPercent / 100) * BASE_WIDTH,
+  y: (layer.position.yPercent / 100) * BASE_HEIGHT,
+};
+This ensures total alignment and fixes the scaling mismatch clearly.
+
+✅ 2. Lofi Cat Animation Scheduling Issues:
+In your provided files, the scheduling logic for the Lofi Cat (VideoOverlay) is causing repeated misfires and inconsistent appearances:
+
+It repeatedly pops up briefly multiple times, then abruptly disappears.
+
+It isn't returning consistently due to incorrect timeout handling logic.
+
+What's causing this behavior?
+Check the current logic in your VideoOverlay.tsx closely:
+
+Your interval timers and visibility flags (setTimeout, setInterval) conflict and rapidly trigger repetitive renders.
+
+When the scheduled appearance finishes, the logic doesn't cleanly reset intervals or timers, resulting in erratic behavior.
+
+⚠️ Clear Recommended Fix for Animation Scheduling ⚠️
+Update your VideoOverlay.tsx clearly to handle schedules robustly:
+
+Here's a complete and robust scheduling logic replacement you can drop into your component clearly and directly:
+
+tsx
+Copy
+Edit
+useEffect(() => {
+  if (!schedule.enabled) return;
+
+  const handleShow = () => {
+    setIsVisible(true);
+    setTimeout(() => setIsVisible(false), schedule.duration * 1000);
+  };
+
+  handleShow();  // Trigger immediately once at start
+  const interval = setInterval(handleShow, schedule.interval * 1000);
+
+  return () => clearInterval(interval);  // Cleanup interval
+}, [schedule.enabled, schedule.interval, schedule.duration]);
+What this does clearly:
+Immediately shows Lofi Cat upon stream start (good for initial testing).
+
+Shows it clearly for exactly the duration seconds you specify.
+
+Clears visibility cleanly after each appearance.
+
+Repeats clearly every interval seconds without erratic repetition.
+
+✅ 3. Fixing Lofi Cat Animation (Sliding Animation):
+If you want the sliding animation and tap behavior smoothly every appearance, ensure your CSS/animation logic is attached directly to your visibility state:
+
+Example simple animation logic (CSS):
+
+css
+Copy
+Edit
+.lofi-cat {
+  transition: transform 0.5s ease-in-out, opacity 0.5s;
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+.lofi-cat.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+Then conditionally toggle visible class in JSX:
+
+tsx
+Copy
+Edit
+<div className={`lofi-cat ${isVisible ? 'visible' : ''}`}>
+  {/* Your cat animation content */}
+</div>
+This ensures smooth, consistent slide-up/down behavior every time the cat shows clearly.
+
+🚨 Exactly What You Need to Do (Summary): 🚨
+Store all layout coordinates explicitly as percentages (both size and position).
+
+PreviewPanel: convert pixel to percentage clearly when dragging/resizing.
+
+StreamOutput: explicitly convert percentages back to 1920x1080 pixels.
+
+Replace your scheduling logic in VideoOverlay.tsx clearly with the recommended interval snippet above to fix erratic appearance.
+
+Add proper CSS/transition handling clearly for your slide-up animation.
+
+Implementing these three explicit recommendations will precisely fix your issues:
+
+✅ Position and alignment perfect.
+✅ Cat scheduling reliable.
+✅ Smooth animation consistently triggered.
