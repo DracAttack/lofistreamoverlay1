@@ -125,12 +125,13 @@ export function VideoOverlay({
   
   return (
     <div 
-      className={`h-full w-full flex items-center justify-center overflow-hidden ${style.backdropBlur || ''} ${!isVisible && preview ? 'opacity-50' : ''}`}
+      className={`h-full w-full flex items-center justify-center overflow-hidden ${!isVisible && preview ? 'opacity-50' : ''}`}
       style={{
-        backgroundColor: isTransparentWebm ? 'transparent' : (style.backgroundColor || 'transparent'),
+        backgroundColor: 'transparent', // Always transparent container
         borderRadius: style.borderRadius || '0',
         opacity: isVisible ? (style.opacity !== undefined ? style.opacity : 1) : 0.3,
-        transition: 'opacity 0.5s ease-in-out'
+        transition: 'opacity 0.5s ease-in-out',
+        backdropFilter: style.backdropBlur ? `blur(${style.backdropBlur})` : undefined
       }}
     >
       {source ? (
@@ -144,7 +145,10 @@ export function VideoOverlay({
           playsInline
           onEnded={handleVideoEnded}
           style={{
-            mixBlendMode: isTransparentWebm ? 'normal' : undefined
+            backgroundColor: 'transparent',
+            objectFit: 'contain',
+            width: '100%',
+            height: '100%'
           }}
         />
       ) : (

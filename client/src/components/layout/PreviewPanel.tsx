@@ -320,7 +320,11 @@ export function PreviewPanel() {
                     {/\.(mp4|webm|ogg|mov)$/i.test(layer.content.source) ? (
                       // Video content with scheduling support
                       <VideoOverlay
-                        style={layer.style}
+                        style={{
+                          ...layer.style,
+                          // Force transparent background for WebM videos
+                          backgroundColor: /\.webm$/i.test(layer.content.source) ? 'transparent' : layer.style.backgroundColor
+                        }}
                         source={layer.content.source}
                         loop={layer.content.scheduleLoop !== false} // default to true
                         autoplay={true}

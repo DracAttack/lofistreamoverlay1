@@ -98,7 +98,7 @@ export function StreamOutput() {
                   // Video content with scheduling support
                   <VideoOverlay
                     style={{
-                      backgroundColor: layer.style.backgroundColor,
+                      backgroundColor: /\.webm$/i.test(layer.content.source) ? 'transparent' : layer.style.backgroundColor,
                       textColor: layer.style.textColor,
                       borderRadius: layer.style.borderRadius,
                       backdropBlur: layer.style.backdropBlur,
