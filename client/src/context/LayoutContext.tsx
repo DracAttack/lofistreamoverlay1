@@ -22,6 +22,7 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
   const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
 
   // Set up WebSocket connection for real-time updates
+  // Set up WebSocket connection for real-time updates - runs ONLY once on component mount
   useEffect(() => {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${wsProtocol}//${window.location.host}/ws/overlay`;
@@ -39,41 +40,66 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
         
         // Handle different message types
         if (message.type === 'layer_updated') {
-          setLayers(prevLayers => 
-            prevLayers.map(layer => 
+          setLayers(prevLayers => {
+            // Check if this layer already exists to prevent duplicates
+            const layerExists = prevLayers.some(layer => layer.id === message.data.id);
+            if (!layerExists) return prevLayers; // Skip if it doesn't exist (shouldn't happen)
+            
+            return prevLayers.map(layer => 
               layer.id === message.data.id ? message.data : layer
-            )
-          );
+            );
+          });
           
-          // Update selected layer if it's the one that changed
-          if (selectedLayer && selectedLayer.id === message.data.id) {
-            setSelectedLayer(message.data);
-          }
+          // Update selected layer if it's the one that changed - using a callback
+          setSelectedLayer(currentSelectedLayer => {
+            if (currentSelectedLayer && currentSelectedLayer.id === message.data.id) {
+              return message.data;
+            }
+            return currentSelectedLayer;
+          });
         } 
         else if (message.type === 'layer_created') {
-          setLayers(prevLayers => [...prevLayers, message.data]);
+          setLayers(prevLayers => {
+            // Check if this layer already exists to prevent duplicates
+            const layerExists = prevLayers.some(layer => layer.id === message.data.id);
+            if (layerExists) return prevLayers; // Skip if already exists
+            
+            return [...prevLayers, message.data];
+          });
         } 
         else if (message.type === 'layer_deleted') {
           setLayers(prevLayers => prevLayers.filter(layer => layer.id !== message.data.id));
-          if (selectedLayer && selectedLayer.id === message.data.id) {
-            setSelectedLayer(null);
-          }
+          
+          setSelectedLayer(currentSelectedLayer => {
+            if (currentSelectedLayer && currentSelectedLayer.id === message.data.id) {
+              return null;
+            }
+            return currentSelectedLayer;
+          });
         }
         // Handle active layout updates from other clients
         else if (message.type === 'active_layout_updated') {
           if (Array.isArray(message.data)) {
             console.log('Received active layout update via WebSocket:', message.data);
-            setLayers(message.data);
             
-            // Update selected layer if it's in the updated list
-            if (selectedLayer) {
-              const updatedSelectedLayer = message.data.find(
-                (layer: Layer) => layer.id === selectedLayer.id
+            // Deduplicate layers by ID before setting
+            const safeLayerData = message.data as Layer[];
+            const uniqueLayers = Array.from(
+              new Map(safeLayerData.map(layer => [layer.id, layer])).values()
+            ) as Layer[];
+            
+            setLayers(uniqueLayers);
+            
+            // Update selected layer using a callback to avoid dependency on selectedLayer
+            setSelectedLayer(currentSelectedLayer => {
+              if (!currentSelectedLayer) return currentSelectedLayer;
+              
+              const updatedSelectedLayer = uniqueLayers.find(
+                layer => layer.id === currentSelectedLayer.id
               );
-              if (updatedSelectedLayer) {
-                setSelectedLayer(updatedSelectedLayer);
-              }
-            }
+              
+              return updatedSelectedLayer || currentSelectedLayer;
+            });
           }
         }
       } catch (error) {
@@ -93,7 +119,7 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
     return () => {
       ws.close();
     };
-  }, [selectedLayer]);
+  }, []); // Empty dependency array - only run once on mount
 
   // Helper function to update layer position on server and broadcast to other clients
   const updateLayerPosition = async (layerId: number, position: Partial<Layer['position']>) => {

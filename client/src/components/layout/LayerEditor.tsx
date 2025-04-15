@@ -334,10 +334,6 @@ export function LayerEditor() {
           onAssetSelect={(assetPath) => {
             console.log("LayerEditor - Asset selected:", assetPath);
             setSourceOption(assetPath);
-            // Debug immediately after setting
-            setTimeout(() => {
-              console.log("LayerEditor - sourceOption after setting:", sourceOption);
-            }, 0);
           }}
         />
       </div>

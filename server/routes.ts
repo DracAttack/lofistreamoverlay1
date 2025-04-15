@@ -265,10 +265,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post("/api/active-layout/sync", express.json(), async (req, res) => {
     try {
-      const { layers } = req.body;
+      let { layers } = req.body;
       if (!Array.isArray(layers)) {
         return res.status(400).json({ message: "Invalid data format. Expected layers array." });
       }
+      
+      // Deduplicate layers by ID to prevent duplicate broadcasting
+      const layerMap = new Map();
+      layers.forEach(layer => {
+        layerMap.set(layer.id, layer);
+      });
+      layers = Array.from(layerMap.values());
       
       const activeLayout = await storage.updateActiveLayout(layers);
       broadcastUpdate("active_layout_updated", layers);
