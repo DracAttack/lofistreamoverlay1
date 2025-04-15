@@ -237,8 +237,8 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
                   ? `${(layer.position.heightPercent / 100) * BASE_HEIGHT}px` // Convert percentage to absolute pixels
                   : `${layer.position.height}px`)
           ),
-          zIndex: layer.zIndex,
-          position: 'absolute' // Ensure absolute positioning for all layers
+          zIndex: layer.zIndex
+          // Position is set on the parent div
         };
         
         // All layers should be positioned normally (no special case for background)
@@ -246,7 +246,13 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
           <div 
             key={layer.id}
             className="absolute"
-            style={position}
+            style={{
+              left: position.left,
+              top: position.top,
+              width: position.width,
+              height: position.height,
+              zIndex: position.zIndex
+            }}
           >
             {/* Handle different types of content based on content */}
             {layer.content.timerEnabled ? (

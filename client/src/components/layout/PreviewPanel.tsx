@@ -53,6 +53,16 @@ export function PreviewPanel() {
     const xPercent = (x / rect.width) * 100;
     const yPercent = (y / rect.height) * 100;
     
+    // Add debugging log for Layer 1 (Loop/Background)
+    const layer = layers.find(l => l.id === dragTarget);
+    if (layer && layer.id === 1) {
+      console.log('Dragging Layer 1 (Loop):', {
+        pixels: { x, y },
+        percentages: { xPercent, yPercent },
+        container: { width: rect.width, height: rect.height }
+      });
+    }
+    
     // Update local UI immediately for responsive feel
     const updatedLayers = layers.map(layer => {
       if (layer.id === dragTarget) {
