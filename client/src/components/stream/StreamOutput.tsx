@@ -20,15 +20,26 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
   const [bgVideo, setBgVideo] = useState("");
-
-  // Use the LayoutContext directly instead of API fetching
+  const [localLayers, setLocalLayers] = useState<Layer[]>([]);
+  
+  // CRITICAL FIX: Get layers directly from context
   // This ensures both Preview and Stream views share the exact same source data
   const { layers } = useLayoutContext();
   
+  // Force a re-render with layers from context when they change
+  useEffect(() => {
+    if (layers && Array.isArray(layers) && layers.length > 0) {
+      console.log("StreamOutput - Setting layers from context:", layers.length);
+      setLocalLayers(layers);
+    } else {
+      console.error("StreamOutput - No layers received from context!");
+    }
+  }, [layers]);
+  
   // Debug logs to check if we're actually receiving data
-  console.log('StreamOutput component - total layers received:', layers.length);
+  console.log('StreamOutput component - total layers received:', layers?.length || 0);
   console.log('StreamOutput component - layer summaries:', 
-    layers.map(l => ({ id: l.id, name: l.name, visible: l.visible, type: l.type })));
+    (layers || []).map(l => ({ id: l.id, name: l.name, visible: l.visible, type: l.type })));
 
   // Fetch quotes
   const { data: quotesData = [] } = useQuery<Quote[]>({
@@ -49,15 +60,53 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
   });
 
   // CRITICAL FIX: Force layers to be visible in Stream Output
-  // The critical bug is fixed here - we need to ensure we're receiving layers
-  if (!layers || !Array.isArray(layers) || layers.length === 0) {
-    console.error("StreamOutput - NO LAYERS RECEIVED FROM CONTEXT! This is the critical issue.");
+  // Try BOTH localLayers AND direct context layers to see which one works
+  const effectiveLayers = localLayers.length > 0 ? localLayers : layers;
+  
+  if (!effectiveLayers || effectiveLayers.length === 0) {
+    console.error("StreamOutput - NO LAYERS AVAILABLE! This is the critical issue.");
   } else {
-    console.log("StreamOutput - All layers:", layers.length, layers.map(l => ({ id: l.id, name: l.name })));
+    console.log("StreamOutput - All layers:", effectiveLayers.length, 
+      effectiveLayers.map(l => ({ id: l.id, name: l.name })));
   }
   
-  // Make a copy of the layers array to avoid mutation issues
-  const allLayers = Array.isArray(layers) ? [...layers] : [];
+  // Create a hard-coded test layer if we have no layers
+  let allLayers: Layer[] = [];
+  
+  if (Array.isArray(effectiveLayers) && effectiveLayers.length > 0) {
+    // Use the real layers if available
+    allLayers = [...effectiveLayers];
+  } else {
+    // Last resort - create a test layer for debugging
+    console.error("EMERGENCY: Creating test layer since no layers are available");
+    const emergencyLayer = {
+      id: 999,
+      name: "EMERGENCY TEST LAYER",
+      type: "background",
+      position: {
+        x: 0,
+        y: 0, 
+        width: 400,
+        height: 200,
+        xPercent: 0,
+        yPercent: 0,
+        widthPercent: 20,
+        heightPercent: 20
+      },
+      style: {
+        backgroundColor: "rgba(255, 0, 0, 0.7)",
+        textColor: "white",
+        borderRadius: "0"
+      },
+      content: {
+        text: "EMERGENCY: No layers found in context!"
+      },
+      zIndex: 10,
+      visible: true
+    } as Layer;
+    
+    allLayers = [emergencyLayer];
+  }
   
   // IMPORTANT: Override the visibility setting for Stream Output
   // We want ALL layers to show here regardless of their visibility setting

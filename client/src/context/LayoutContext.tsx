@@ -17,9 +17,18 @@ interface LayoutProviderProps {
 }
 
 export function LayoutProvider({ children }: LayoutProviderProps) {
+  console.log("LayoutProvider rendering - the critical context that manages all layers");
+  
+  // CRITICAL: This state is shared between Preview and Stream components 
   const [layers, setLayers] = useState<Layer[]>([]);
   const [selectedLayer, setSelectedLayer] = useState<Layer | null>(null);
   const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
+  
+  // Debug log when layers change
+  useEffect(() => {
+    console.log("LayoutContext - layers state changed:", 
+      layers.length ? `${layers.length} layers available` : "NO LAYERS AVAILABLE");
+  }, [layers]);
 
   // Set up WebSocket connection for real-time updates
   // Set up WebSocket connection for real-time updates - runs ONLY once on component mount

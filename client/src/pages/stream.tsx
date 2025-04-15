@@ -61,10 +61,10 @@ export default function Stream() {
   }, [layers, setLayers]);
     
     // Fetch active layout from the server
-    const { isLoading, data: activeLayoutData } = useQuery<ActiveLayout>({
-      queryKey: ['/api/active-layout'],
-      refetchInterval: 5000, // Refetch every 5 seconds as a fallback
-    });
+  const { isLoading, data: activeLayoutData } = useQuery<ActiveLayout>({
+    queryKey: ['/api/active-layout'],
+    refetchInterval: 5000, // Refetch every 5 seconds as a fallback
+  });
 
   // Use active layout data when available
   useEffect(() => {
