@@ -29,8 +29,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     server: httpServer,
     path: '/ws/overlay'
   });
-  wss.on("connection", (ws) => {
+  wss.on("connection", async (ws) => {
     console.log("WebSocket client connected to /ws/overlay");
+    
+    // Send the current active layout to the new client
+    try {
+      const activeLayoutData = await storage.getActiveLayout();
+      if (activeLayoutData) {
+        ws.send(JSON.stringify({
+          type: "active_layout_updated",
+          data: activeLayoutData.layers
+        }));
+      } else {
+        // If no active layout exists yet, send all layers
+        const allLayers = await storage.getLayers();
+        ws.send(JSON.stringify({
+          type: "active_layout_updated",
+          data: allLayers
+        }));
+      }
+    } catch (error) {
+      console.error("Error sending initial layout data:", error);
+    }
+    
     ws.on("close", () => console.log("WebSocket client disconnected"));
   });
 

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, jsonb, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -29,9 +29,17 @@ export const layers = pgTable("layers", {
 export const layouts = pgTable("layouts", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  preview: text("preview").notNull(),
+  preview: text("preview"),
   layers: jsonb("layers").notNull(),
+  current: boolean("current").default(false),
   createdAt: text("created_at").notNull(),
+});
+
+// Current layout state - for real-time sync
+export const activeLayout = pgTable("active_layout", {
+  id: serial("id").primaryKey(),
+  layers: jsonb("layers").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 // Quote schema for rotating quotes
@@ -59,7 +67,8 @@ export const spotifySettings = pgTable("spotify_settings", {
 // Insert schemas
 export const insertAssetSchema = createInsertSchema(assets).omit({ id: true });
 export const insertLayerSchema = createInsertSchema(layers).omit({ id: true });
-export const insertLayoutSchema = createInsertSchema(layouts).omit({ id: true });
+export const insertLayoutSchema = createInsertSchema(layouts).omit({ id: true, current: true });
+export const insertActiveLayoutSchema = createInsertSchema(activeLayout).omit({ id: true, updatedAt: true });
 export const insertQuoteSchema = createInsertSchema(quotes).omit({ id: true });
 export const insertSpotifySettingsSchema = createInsertSchema(spotifySettings).omit({ id: true });
 
@@ -72,6 +81,9 @@ export type InsertLayer = z.infer<typeof insertLayerSchema>;
 
 export type Layout = typeof layouts.$inferSelect;
 export type InsertLayout = z.infer<typeof insertLayoutSchema>;
+
+export type ActiveLayout = typeof activeLayout.$inferSelect;
+export type InsertActiveLayout = z.infer<typeof insertActiveLayoutSchema>;
 
 export type Quote = typeof quotes.$inferSelect;
 export type InsertQuote = z.infer<typeof insertQuoteSchema>;
