@@ -59,6 +59,23 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
             setSelectedLayer(null);
           }
         }
+        // Handle active layout updates from other clients
+        else if (message.type === 'active_layout_updated') {
+          if (Array.isArray(message.data)) {
+            console.log('Received active layout update via WebSocket:', message.data);
+            setLayers(message.data);
+            
+            // Update selected layer if it's in the updated list
+            if (selectedLayer) {
+              const updatedSelectedLayer = message.data.find(
+                (layer: Layer) => layer.id === selectedLayer.id
+              );
+              if (updatedSelectedLayer) {
+                setSelectedLayer(updatedSelectedLayer);
+              }
+            }
+          }
+        }
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error);
       }
@@ -94,16 +111,23 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
       };
 
       // Update local state
-      setLayers(prevLayers => 
-        prevLayers.map(layer => 
-          layer.id === layerId ? updatedLayer : layer
-        )
+      const updatedLayers = layers.map(layer => 
+        layer.id === layerId ? updatedLayer : layer
       );
+      
+      setLayers(updatedLayers);
 
-      // Send update to server
+      // Send update to server - both for the individual layer and active layout
       await apiRequest('PUT', `/api/layers/${layerId}`, { 
         position: updatedLayer.position 
       });
+      
+      // Additionally sync to active layout to ensure consistent state across clients
+      await apiRequest('POST', '/api/active-layout/sync', {
+        layers: updatedLayers
+      });
+      
+      console.log('Position update synced to active layout');
     } catch (error) {
       console.error('Failed to update layer position:', error);
     }

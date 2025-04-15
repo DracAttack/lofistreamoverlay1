@@ -47,6 +47,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           type: "active_layout_updated",
           data: allLayers
         }));
+        
+        // Initialize the active layout with current layers
+        if (allLayers.length > 0) {
+          await storage.updateActiveLayout(allLayers);
+        }
       }
     } catch (error) {
       console.error("Error sending initial layout data:", error);
@@ -238,6 +243,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       res.status(500).json({ message: "Failed to delete layout" });
+    }
+  });
+  
+  // Active Layout routes - for real-time sync
+  app.get("/api/active-layout", async (req, res) => {
+    try {
+      const activeLayout = await storage.getActiveLayout();
+      if (activeLayout) {
+        res.json(activeLayout);
+      } else {
+        // If no active layout exists, return all layers
+        const layers = await storage.getLayers();
+        res.json({ id: 0, layers, updatedAt: new Date().toISOString() });
+      }
+    } catch (error) {
+      console.error("Error fetching active layout:", error);
+      res.status(500).json({ message: "Failed to fetch active layout" });
+    }
+  });
+  
+  app.post("/api/active-layout/sync", express.json(), async (req, res) => {
+    try {
+      const { layers } = req.body;
+      if (!Array.isArray(layers)) {
+        return res.status(400).json({ message: "Invalid data format. Expected layers array." });
+      }
+      
+      const activeLayout = await storage.updateActiveLayout(layers);
+      broadcastUpdate("active_layout_updated", layers);
+      res.json(activeLayout);
+    } catch (error) {
+      console.error("Error syncing active layout:", error);
+      res.status(500).json({ message: "Failed to sync active layout" });
     }
   });
 
