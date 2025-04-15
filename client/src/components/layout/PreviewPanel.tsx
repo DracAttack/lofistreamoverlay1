@@ -325,11 +325,15 @@ export function PreviewPanel() {
             // Special case for the first layer (background)
             const isBackground = layer === layers.filter(l => l.visible).sort((a, b) => a.zIndex - b.zIndex)[0];
             
+            // Use percentage-based positioning if available, otherwise fallback to pixels
             const style = {
-              left: `${layer.position.x}px`,
-              top: `${layer.position.y}px`,
-              width: layer.position.width === 'auto' ? 'auto' : `${layer.position.width}px`,
-              height: layer.position.height === 'auto' ? 'auto' : `${layer.position.height}px`,
+              // If percentage values are available, use them
+              left: layer.position.xPercent ? `${layer.position.xPercent}%` : `${layer.position.x}px`,
+              top: layer.position.yPercent ? `${layer.position.yPercent}%` : `${layer.position.y}px`,
+              width: layer.position.width === 'auto' ? 'auto' : 
+                     (layer.position.widthPercent ? `${layer.position.widthPercent}%` : `${layer.position.width}px`),
+              height: layer.position.height === 'auto' ? 'auto' : 
+                      (layer.position.heightPercent ? `${layer.position.heightPercent}%` : `${layer.position.height}px`),
               zIndex: layer.zIndex,
               cursor: isDragging && dragTarget === layer.id ? 'grabbing' : 'grab',
               position: 'absolute' as 'absolute',

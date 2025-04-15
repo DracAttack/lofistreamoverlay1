@@ -17,10 +17,17 @@ export interface Asset {
 }
 
 export interface LayerPosition {
+  // Absolute pixel positions
   x: number;
   y: number;
   width: number | 'auto';
   height: number | 'auto';
+  
+  // Relative percentage positions (for cross-view consistency)
+  xPercent?: number;
+  yPercent?: number;
+  widthPercent?: number;
+  heightPercent?: number;
 }
 
 export interface LayerStyle {

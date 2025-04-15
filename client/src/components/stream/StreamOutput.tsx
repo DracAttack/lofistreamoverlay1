@@ -95,12 +95,15 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
     >
       {/* Render all layers in z-index order */}
       {visibleLayers.map(layer => {
-        // Set up position styles
+        // Set up position styles using percentage values if available, fallback to pixels
         const position = {
-          left: `${layer.position.x}px`,
-          top: `${layer.position.y}px`,
-          width: layer.position.width === 'auto' ? 'auto' : `${layer.position.width}px`,
-          height: layer.position.height === 'auto' ? 'auto' : `${layer.position.height}px`,
+          // If percentage values are available, use them for consistent cross-view positioning
+          left: layer.position.xPercent ? `${layer.position.xPercent}%` : `${layer.position.x}px`,
+          top: layer.position.yPercent ? `${layer.position.yPercent}%` : `${layer.position.y}px`,
+          width: layer.position.width === 'auto' ? 'auto' : 
+                (layer.position.widthPercent ? `${layer.position.widthPercent}%` : `${layer.position.width}px`),
+          height: layer.position.height === 'auto' ? 'auto' : 
+                 (layer.position.heightPercent ? `${layer.position.heightPercent}%` : `${layer.position.height}px`),
           zIndex: layer.zIndex
         };
         
@@ -226,10 +229,12 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
         <div 
           className="absolute"
           style={{
-            left: `${spotifyLayer.position.x}px`,
-            top: `${spotifyLayer.position.y}px`,
-            width: spotifyLayer.position.width === 'auto' ? 'auto' : `${spotifyLayer.position.width}px`,
-            height: spotifyLayer.position.height === 'auto' ? 'auto' : `${spotifyLayer.position.height}px`,
+            left: spotifyLayer.position.xPercent ? `${spotifyLayer.position.xPercent}%` : `${spotifyLayer.position.x}px`,
+            top: spotifyLayer.position.yPercent ? `${spotifyLayer.position.yPercent}%` : `${spotifyLayer.position.y}px`,
+            width: spotifyLayer.position.width === 'auto' ? 'auto' : 
+                  (spotifyLayer.position.widthPercent ? `${spotifyLayer.position.widthPercent}%` : `${spotifyLayer.position.width}px`),
+            height: spotifyLayer.position.height === 'auto' ? 'auto' : 
+                   (spotifyLayer.position.heightPercent ? `${spotifyLayer.position.heightPercent}%` : `${spotifyLayer.position.height}px`),
             zIndex: spotifyLayer.zIndex,
           }}
         >

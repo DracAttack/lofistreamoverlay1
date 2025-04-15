@@ -1,0 +1,76 @@
+🧨 Root Problem: Viewport / Canvas Scaling is not being respected across both views
+✅ What’s Happening in PreviewPanel:
+You scale and position layers visually relative to a container (previewRef)
+
+Drag/resizing uses pixel-based math relative to the preview div’s getBoundingClientRect()
+
+This works beautifully in that window only, because it’s mapped to the preview’s canvas size
+
+❌ What StreamOutput Is Doing:
+StreamOutput just reads raw .position values from the database, without any context of:
+
+Aspect ratio
+
+Base resolution
+
+Scaling
+
+So it treats { x: 400, y: 200, width: 300, height: 100 } as absolute pixel values, not scaled values
+
+🎯 Result:
+Layers appear stacked, huge, or misaligned
+
+Because their absolute positions are only valid relative to PreviewPanel’s scaling
+
+And StreamOutput is rendering them in a totally different coordinate space (often 1920x1080)
+
+✅ Solution
+🔧 Fix 1: Store positions in % (relative units)
+On drag/resize inside PreviewPanel, convert pixel-based positions to percentages of container width/height before saving to DB.
+
+ts
+Copy
+Edit
+const container = previewRef.current.getBoundingClientRect();
+const relativeX = (absoluteX / container.width) * 100;
+const relativeY = (absoluteY / container.height) * 100;
+const relativeW = (absoluteWidth / container.width) * 100;
+const relativeH = (absoluteHeight / container.height) * 100;
+Save these as { xPercent, yPercent, widthPercent, heightPercent } in your position field
+
+🔧 Fix 2: In StreamOutput, apply the % back into pixel space
+When rendering layers, use:
+
+ts
+Copy
+Edit
+const container = containerRef.current?.getBoundingClientRect();
+const layerStyle = {
+  left: `${(layer.position.xPercent || 0)}%`,
+  top: `${(layer.position.yPercent || 0)}%`,
+  width: `${(layer.position.widthPercent || 0)}%`,
+  height: `${(layer.position.heightPercent || 0)}%`,
+  position: "absolute",
+};
+✅ This keeps every element perfectly aligned no matter the size of the window, tab, browser source, or monitor.
+
+🔧 Bonus Fix: Normalize aspect ratio
+Since you have an aspectRatio prop on both components, enforce a base rendering canvas like:
+
+css
+Copy
+Edit
+.preview-container {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  max-width: 1920px;
+  position: relative;
+}
+So PreviewPanel and StreamOutput are working in the same space.
+
+🧠 TL;DR
+
+Problem	Fix
+Elements are misaligned/stuck	Normalize position into percentage units on save
+Different canvas sizes	Use consistent aspect-ratio containers in both Preview and Output
+Scaling not respected	Render elements with left/top/width/height in %
