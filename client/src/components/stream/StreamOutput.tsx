@@ -19,10 +19,14 @@ export function StreamOutput() {
   // Fetch quotes
   const { data: quotesData = [] } = useQuery<Quote[]>({
     queryKey: ['/api/quotes'],
-    onSuccess: (data) => {
-      setQuotes(data);
-    }
   });
+  
+  // Update quotes when data changes
+  useEffect(() => {
+    if (quotesData.length > 0) {
+      setQuotes(quotesData);
+    }
+  }, [quotesData]);
 
   // Get currently playing track from Spotify
   const { data: spotifyData } = useQuery<SpotifyNowPlaying>({
@@ -31,22 +35,14 @@ export function StreamOutput() {
   });
 
   // Find the visible layers sorted by z-index
+  // All layers are treated generically now, just sort by z-index
   const visibleLayers = layers
     .filter(layer => layer.visible)
     .sort((a, b) => a.zIndex - b.zIndex);
-
-  // Get background layer
-  const backgroundLayer = visibleLayers.find(layer => layer.type === 'background');
-  
-  // Get quote layer
-  const quoteLayer = visibleLayers.find(layer => layer.type === 'quote');
-  
-  // Get Spotify layer
-  const spotifyLayer = visibleLayers.find(layer => layer.type === 'spotify');
-
-  // Get any additional layers
-  const otherLayers = visibleLayers.filter(
-    layer => layer.type !== 'background' && layer.type !== 'quote' && layer.type !== 'spotify'
+    
+  // Get a layer with Spotify connection
+  const spotifyLayer = visibleLayers.find(
+    layer => layer.content?.spotifyEnabled === true
   );
 
   // Rotate quotes every 30 seconds
@@ -54,101 +50,128 @@ export function StreamOutput() {
     if (quotes.length > 1) {
       const quoteInterval = setInterval(() => {
         setCurrentQuoteIndex((prevIndex) => (prevIndex + 1) % quotes.length);
-      }, (quoteLayer?.content?.rotationInterval || 30) * 1000);
+      }, 30 * 1000); // Fixed 30 second rotation
       
       return () => clearInterval(quoteInterval);
     }
-  }, [quotes, quoteLayer]);
+  }, [quotes]);
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-background">
-      {/* Background Layer */}
-      {backgroundLayer && (
-        <div 
-          className="absolute inset-0"
-          style={{ zIndex: backgroundLayer.zIndex }}
-        >
-          {backgroundLayer.content.source ? (
-            // If there's a source, check if it's a video or an image
-            <>
-              {/\.(mp4|webm|ogg|mov)$/i.test(backgroundLayer.content.source) ? (
-                // Video background
-                <VideoOverlay
-                  style={{
-                    backgroundColor: backgroundLayer.style.backgroundColor,
-                    borderRadius: backgroundLayer.style.borderRadius,
-                    backdropBlur: backgroundLayer.style.backdropBlur,
-                    opacity: backgroundLayer.style.opacity !== undefined ? 
-                      parseFloat(backgroundLayer.style.opacity as unknown as string) : 1
-                  }}
-                  source={backgroundLayer.content.source}
-                  loop={true}
-                  autoplay={true}
-                  muted={true}
-                />
-              ) : (
-                // Image background
-                <div
-                  style={{
-                    backgroundColor: backgroundLayer.style.backgroundColor || 'transparent',
-                    borderRadius: backgroundLayer.style.borderRadius || '0',
-                    overflow: 'hidden',
-                    height: '100%',
-                    width: '100%',
-                    backdropFilter: backgroundLayer.style.backdropBlur ? 
-                      `blur(${backgroundLayer.style.backdropBlur})` : 'none',
-                  }}
-                >
-                  <img 
-                    src={backgroundLayer.content.source} 
-                    alt="Background"
+      {/* Render all layers in z-index order */}
+      {visibleLayers.map(layer => {
+        // Set up position styles
+        const position = {
+          left: `${layer.position.x}px`,
+          top: `${layer.position.y}px`,
+          width: layer.position.width === 'auto' ? 'auto' : `${layer.position.width}px`,
+          height: layer.position.height === 'auto' ? 'auto' : `${layer.position.height}px`,
+          zIndex: layer.zIndex
+        };
+        
+        // Special case for first layer - treat as background
+        const isBackground = layer === visibleLayers[0];
+        
+        return (
+          <div 
+            key={layer.id}
+            className={isBackground ? "absolute inset-0" : "absolute"}
+            style={isBackground ? { zIndex: layer.zIndex } : position}
+          >
+            {/* Handle different types of content based on source path */}
+            {layer.content?.source ? (
+              <>
+                {/\.(mp4|webm|ogg|mov)$/i.test(layer.content.source) ? (
+                  // Video content
+                  <VideoOverlay
                     style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover'
+                      backgroundColor: layer.style.backgroundColor,
+                      textColor: layer.style.textColor,
+                      borderRadius: layer.style.borderRadius,
+                      backdropBlur: layer.style.backdropBlur,
+                      opacity: layer.style.opacity !== undefined ? 
+                        parseFloat(layer.style.opacity as unknown as string) : 1
                     }}
+                    source={layer.content.source}
+                    loop={true}
+                    autoplay={true}
+                    muted={true}
                   />
-                </div>
-              )}
-            </>
-          ) : (
-            // Default background
-            <div 
-              className="w-full h-full"
-              style={{ backgroundColor: backgroundLayer.style.backgroundColor || '#111' }}
-            />
-          )}
-        </div>
-      )}
+                ) : /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(layer.content.source) ? (
+                  // Image content
+                  <div
+                    style={{
+                      backgroundColor: layer.style.backgroundColor || 'transparent',
+                      borderRadius: layer.style.borderRadius || '0',
+                      overflow: 'hidden',
+                      height: '100%',
+                      width: '100%',
+                      backdropFilter: layer.style.backdropBlur ? 
+                        `blur(${layer.style.backdropBlur})` : 'none',
+                    }}
+                  >
+                    <img 
+                      src={layer.content.source} 
+                      alt={`Layer ${layer.id}`}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: isBackground ? 'cover' : 'contain'
+                      }}
+                    />
+                  </div>
+                ) : (
+                  // Default for other content types
+                  <div 
+                    className="w-full h-full flex items-center justify-center"
+                    style={{
+                      backgroundColor: layer.style.backgroundColor || 'rgba(0,0,0,0.5)',
+                      borderRadius: layer.style.borderRadius || '0',
+                      backdropFilter: layer.style.backdropBlur ? 
+                        `blur(${layer.style.backdropBlur})` : 'none',
+                    }}
+                  >
+                    <p style={{ color: layer.style.textColor || '#fff' }}>
+                      {layer.name}
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : isBackground ? (
+              // Empty background layer
+              <div 
+                className="w-full h-full"
+                style={{ backgroundColor: layer.style.backgroundColor || '#111' }}
+              />
+            ) : (
+              // Empty regular layer
+              <div 
+                className="w-full h-full flex items-center justify-center"
+                style={{
+                  backgroundColor: layer.style.backgroundColor || 'rgba(0,0,0,0.5)',
+                  borderRadius: layer.style.borderRadius || '0',
+                  backdropFilter: layer.style.backdropBlur ? 
+                    `blur(${layer.style.backdropBlur})` : 'none',
+                }}
+              >
+                <p style={{ color: layer.style.textColor || '#fff' }}>
+                  {layer.name}
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      })}
       
-      {/* Quote Overlay */}
-      {quoteLayer && quotes.length > 0 && (
-        <div 
-          className="absolute"
-          style={{
-            left: `${quoteLayer.position.x}px`,
-            top: `${quoteLayer.position.y}px`,
-            width: quoteLayer.position.width ? `${quoteLayer.position.width}px` : 'auto',
-            height: quoteLayer.position.height ? `${quoteLayer.position.height}px` : 'auto',
-            zIndex: quoteLayer.zIndex,
-          }}
-        >
-          <QuoteOverlay 
-            style={quoteLayer.style}
-            quote={quotes[currentQuoteIndex]}
-          />
-        </div>
-      )}
-      
-      {/* Spotify Widget */}
+      {/* Spotify Widget - special case */}
       {spotifyLayer && spotifyData && (
         <div 
           className="absolute"
           style={{
             left: `${spotifyLayer.position.x}px`,
             top: `${spotifyLayer.position.y}px`,
-            width: spotifyLayer.position.width ? `${spotifyLayer.position.width}px` : 'auto',
-            height: spotifyLayer.position.height ? `${spotifyLayer.position.height}px` : 'auto',
+            width: spotifyLayer.position.width === 'auto' ? 'auto' : `${spotifyLayer.position.width}px`,
+            height: spotifyLayer.position.height === 'auto' ? 'auto' : `${spotifyLayer.position.height}px`,
             zIndex: spotifyLayer.zIndex,
           }}
         >
@@ -159,64 +182,6 @@ export function StreamOutput() {
           />
         </div>
       )}
-      
-      {/* Other Layers */}
-      {otherLayers.map(layer => (
-        <div 
-          key={layer.id}
-          className="absolute"
-          style={{
-            left: `${layer.position.x}px`,
-            top: `${layer.position.y}px`,
-            width: layer.position.width ? `${layer.position.width}px` : 'auto',
-            height: layer.position.height ? `${layer.position.height}px` : 'auto',
-            zIndex: layer.zIndex,
-          }}
-        >
-          {layer.type === 'logo' && layer.content.source && (
-            <>
-              {/* Check if source is a video file */}
-              {/\.(mp4|webm|ogg|mov)$/i.test(layer.content.source) ? (
-                <VideoOverlay
-                  style={{
-                    backgroundColor: layer.style.backgroundColor,
-                    textColor: layer.style.textColor,
-                    borderRadius: layer.style.borderRadius,
-                    backdropBlur: layer.style.backdropBlur,
-                    opacity: layer.style.opacity !== undefined ? parseFloat(layer.style.opacity as unknown as string) : 1
-                  }}
-                  source={layer.content.source}
-                  loop={true}
-                  autoplay={true}
-                  muted={true}
-                />
-              ) : (
-                // Regular image
-                <div
-                  style={{
-                    backgroundColor: layer.style.backgroundColor || 'transparent',
-                    borderRadius: layer.style.borderRadius || '0',
-                    overflow: 'hidden',
-                    height: '100%',
-                    width: '100%',
-                    backdropFilter: layer.style.backdropBlur ? `blur(${layer.style.backdropBlur})` : 'none',
-                  }}
-                >
-                  <img 
-                    src={layer.content.source} 
-                    alt="Logo/Image"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'contain'
-                    }}
-                  />
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      ))}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { Quote } from "@/lib/types";
+import { AssetSelector } from "./AssetSelector";
 
 export function LayerEditor() {
   const { selectedLayer, setLayers, layers } = useLayoutContext();
@@ -270,46 +271,17 @@ export function LayerEditor() {
       </div>
       
       {/* Content Controls */}
-      {selectedLayer.type === 'quote' && (
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-xs text-foreground/70">Content Source</label>
-            <button className="text-xs text-primary hover:text-primary/80 transition-colors">
-              Edit source
-            </button>
-          </div>
-          <select 
-            className="w-full bg-background border border-secondary/30 rounded px-2 py-1 text-sm"
-            value={sourceOption}
-            onChange={(e) => setSourceOption(e.target.value)}
-          >
-            <option value="">All Quotes</option>
-            {quotes.map(quote => (
-              <option key={quote.id} value={quote.id.toString()}>
-                {quote.text.substring(0, 30)}...
-              </option>
-            ))}
-          </select>
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-xs text-foreground/70">Asset Selection</label>
         </div>
-      )}
-      
-      {/* Animation Controls */}
-      {selectedLayer.type === 'quote' && (
-        <div>
-          <label className="block text-xs text-foreground/70 mb-1">Rotation Interval</label>
-          <div className="flex items-center space-x-2">
-            <input 
-              type="range" 
-              min="5" 
-              max="60" 
-              value={rotationInterval} 
-              onChange={(e) => setRotationInterval(parseInt(e.target.value, 10))}
-              className="flex-1"
-            />
-            <span className="text-sm">{rotationInterval}s</span>
-          </div>
-        </div>
-      )}
+        
+        {/* Asset Selector */}
+        <AssetSelector
+          selectedAsset={sourceOption}
+          onAssetSelect={(assetPath) => setSourceOption(assetPath)}
+        />
+      </div>
 
       {/* Save Button */}
       <div className="mt-6 flex justify-end">

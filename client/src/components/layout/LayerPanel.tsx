@@ -78,13 +78,19 @@ export function LayerPanel() {
 
     try {
       const defaultPosition = { x: 50, y: 50, width: 300, height: 200 };
-      let defaultStyle = { backgroundColor: 'rgba(0, 0, 0, 0.75)', textColor: '#00FFFF', borderRadius: '8px' };
+      let defaultStyle = { 
+        backgroundColor: 'rgba(0, 0, 0, 0.75)', 
+        textColor: '#00FFFF', 
+        borderRadius: '8px',
+        opacity: 1 
+      };
       let defaultContent = { source: '' };
       let zIndex = layers.length + 10;
 
+      // Use 'generic' type for all layers to make them flexible
       const response = await apiRequest("POST", "/api/layers", {
         name: newLayerName,
-        type: newLayerType,
+        type: 'generic', // All layers are generic now
         position: defaultPosition,
         style: defaultStyle,
         content: defaultContent,
@@ -96,7 +102,7 @@ export function LayerPanel() {
       setLayers([...layers, newLayer]);
       setAddingLayer(false);
       setNewLayerName("");
-      setNewLayerType("quote");
+      setNewLayerType("generic");
       
       queryClient.invalidateQueries({ queryKey: ['/api/layers'] });
       
@@ -154,19 +160,7 @@ export function LayerPanel() {
                 placeholder="Layer name"
               />
             </div>
-            <div>
-              <label className="block text-xs text-foreground/70 mb-1">Type</label>
-              <select 
-                value={newLayerType}
-                onChange={(e) => setNewLayerType(e.target.value)}
-                className="w-full bg-card border border-secondary/30 rounded px-2 py-1 text-sm"
-              >
-                <option value="background">Background Video</option>
-                <option value="quote">Quote Text</option>
-                <option value="spotify">Spotify Player</option>
-                <option value="logo">Logo/Image</option>
-              </select>
-            </div>
+            {/* Layer type selection removed - all layers are generic and can have any content */}
             <div className="flex justify-end space-x-2">
               <button 
                 onClick={() => setAddingLayer(false)}
@@ -247,23 +241,33 @@ export function LayerPanel() {
               </div>
               <div className="flex items-center space-x-2">
                 <div className="h-16 w-28 bg-secondary/20 rounded flex items-center justify-center overflow-hidden">
-                  {renderLayerTypeIcon(layer.type)}
-                  <div className="text-xs ml-1">
-                    {layer.type === "background" && "Background"}
-                    {layer.type === "quote" && "Quotes"}
-                    {layer.type === "spotify" && "Spotify"}
-                    {layer.type === "logo" && "Logo/Image"}
-                  </div>
+                  {layer.content.source ? (
+                    <div className="w-full h-full flex items-center justify-center">
+                      {/\.(mp4|webm|ogg|mov)$/i.test(layer.content.source) ? (
+                        <i className="ri-movie-line text-secondary text-lg"></i>
+                      ) : /\.(jpg|jpeg|png|gif|svg)$/i.test(layer.content.source) ? (
+                        <i className="ri-image-line text-secondary text-lg"></i>
+                      ) : (
+                        <i className="ri-file-line text-secondary text-lg"></i>
+                      )}
+                    </div>
+                  ) : (
+                    <i className="ri-add-circle-line text-secondary text-lg"></i>
+                  )}
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-foreground/60 mb-1">{layer.type}.layer</p>
+                  <p className="text-xs text-foreground/60 mb-1">Layer #{layer.id}</p>
                   <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-0.5 bg-background rounded text-xs ${
-                      layer.type === 'spotify' ? 'text-primary' : 
-                      layer.type === 'quote' ? 'text-accent' : 'text-secondary'
-                    }`}>
-                      {layer.type.charAt(0).toUpperCase() + layer.type.slice(1)}
-                    </span>
+                    {layer.content.source ? (
+                      <span className="px-2 py-0.5 bg-background rounded text-xs text-secondary">
+                        {layer.content.source.split('/').pop()?.substring(0, 15) || "Asset set"}
+                        {layer.content.source.split('/').pop()?.length > 15 ? "..." : ""}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-background rounded text-xs text-foreground/50">
+                        No asset set
+                      </span>
+                    )}
                     <span className="text-xs text-foreground/60">z-index: {layer.zIndex}</span>
                   </div>
                 </div>
