@@ -131,6 +131,7 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
                 {/\.(mp4|webm|ogg|mov)$/i.test(layer.content.source) ? (
                   // Video content with scheduling support
                   <VideoOverlay
+                    key={`video-${layer.id}-${layer.content.source}`} // Unique key based on layer ID and source
                     style={{
                       backgroundColor: /\.webm$/i.test(layer.content.source) ? 'transparent' : layer.style.backgroundColor,
                       textColor: layer.style.textColor,

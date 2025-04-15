@@ -49,12 +49,42 @@ export function VideoOverlay({
   const [scheduleActive, setScheduleActive] = useState(false);
   const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
   
-  // Check if it's a transparent WebM file
+  // Update video reference and metadata when source changes
   useEffect(() => {
     if (source) {
+      console.log("VideoOverlay: Source changed to:", source);
+      
+      // Reset visibility when source changes
+      setIsVisible(autoplay || preview || !schedule.autoHide);
+      
+      // For WebM files, set a flag to render with transparency
       setIsTransparentWebm(/\.webm$/i.test(source));
+      
+      // Force the video to reload when source changes - this helps with scheduling
+      // as it ensures the video is in a consistent state
+      if (videoRef.current) {
+        // Wait a tiny bit for the DOM to stabilize
+        setTimeout(() => {
+          if (videoRef.current) {
+            console.log("VideoOverlay: Source changed - forcefully reloading video");
+            videoRef.current.pause();
+            videoRef.current.load();
+            videoRef.current.currentTime = 0;
+            
+            // Force a layout reflow to ensure browser updates the video state
+            void videoRef.current.offsetHeight;
+            
+            // Try to play the video if appropriate
+            if (autoplay) {
+              videoRef.current.play().catch(err => {
+                console.error("Error playing video after source change:", err);
+              });
+            }
+          }
+        }, 50);
+      }
     }
-  }, [source]);
+  }, [source, autoplay, preview, schedule.autoHide]);
   
   // Function to activate the overlay - defined outside useEffect to avoid recreation
   const activateOverlay = () => {
@@ -62,10 +92,17 @@ export function VideoOverlay({
     setIsVisible(true);
     setScheduleActive(true);
     
-    // Reset video to beginning if we have a video and a source
+    // Always forcefully restart the video when scheduled
     if (videoRef.current && source) {
       try {
+        console.log("Forcefully restarting video from beginning");
+        
+        // First pause and reset position
+        videoRef.current.pause();
         videoRef.current.currentTime = 0;
+        
+        // Force a layout reflow to ensure browser updates the video state
+        void videoRef.current.offsetHeight;
         
         // Create a promise to detect when the video is ready
         const playPromise = videoRef.current.play();
@@ -75,11 +112,22 @@ export function VideoOverlay({
             console.log("Video playback started successfully");
           }).catch(err => {
             console.error("Error playing video:", err);
-            // Try once more after a short delay
+            // Try once more after a short delay with a different approach
             setTimeout(() => {
               if (videoRef.current) {
+                // Try a different approach - remove and recreate source
+                const originalSrc = videoRef.current.src;
+                videoRef.current.src = "";
+                
+                // Force browser to recognize the change
+                void videoRef.current.offsetHeight;
+                
+                // Set source back and play
+                videoRef.current.src = originalSrc;
+                videoRef.current.load();
+                videoRef.current.currentTime = 0;
                 videoRef.current.play().catch(retryErr => {
-                  console.error("Retry play failed:", retryErr);
+                  console.error("All retry attempts failed:", retryErr);
                 });
               }
             }, 500);
@@ -120,7 +168,20 @@ export function VideoOverlay({
   useEffect(() => {
     // Don't run scheduling in preview mode or when scheduling is disabled
     if (preview || !schedule.enabled) {
-      console.log("VideoOverlay: Schedule disabled or in preview mode");
+      console.log("VideoOverlay: Schedule disabled or in preview mode", { 
+        preview, 
+        scheduleEnabled: schedule.enabled,
+        source,
+        videoRef: videoRef.current ? 'exists' : 'missing',
+        videoState: videoRef.current ? {
+          paused: videoRef.current.paused,
+          ended: videoRef.current.ended,
+          currentTime: videoRef.current.currentTime,
+          duration: videoRef.current.duration,
+          readyState: videoRef.current.readyState,
+          networkState: videoRef.current.networkState
+        } : 'N/A'
+      });
       
       // If in preview mode or disabled but the source exists, make sure it's visible
       if (source && (preview || !schedule.autoHide)) {
@@ -191,13 +252,33 @@ export function VideoOverlay({
       loop,
       scheduleAutoHide: schedule.autoHide,
       preview,
-      scheduleEnabled: schedule.enabled
+      scheduleEnabled: schedule.enabled,
+      duration: schedule.duration,
+      interval: schedule.interval
     });
     
-    if (!loop && schedule.autoHide && !preview && schedule.enabled) {
-      console.log("VideoOverlay: Video ended, hiding overlay");
+    if (loop) {
+      // For looping videos, we need to ensure playback continues
+      // This can be necessary as some browsers may not correctly loop videos
+      if (videoRef.current) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play().catch(err => {
+          console.error("Error restarting looped video:", err);
+        });
+      }
+    } 
+    else if (schedule.autoHide && !preview && schedule.enabled) {
+      // For non-looping videos, follow the autoHide setting
+      console.log("VideoOverlay: Non-looping video ended, hiding overlay");
       setIsVisible(false);
       setScheduleActive(false);
+    }
+    else {
+      // Non-looping video, but autoHide is disabled, so keep it visible
+      // but reset to the first frame
+      if (videoRef.current) {
+        videoRef.current.currentTime = 0;
+      }
     }
   };
   
