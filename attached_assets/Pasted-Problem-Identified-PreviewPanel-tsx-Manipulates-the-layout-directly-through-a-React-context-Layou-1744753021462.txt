@@ -1,0 +1,37 @@
+Problem Identified:
+PreviewPanel.tsx: Manipulates the layout directly through a React context (LayoutContext), updating positions and dimensions immediately on user interaction.
+
+StreamOutput.tsx: Fetches layout data using a separate query to the /api/active-layout endpoint, updating only every second (refetchInterval: 1000), and doesn't share the same immediate context updates directly.
+
+This architecture causes latency and discrepancy between the user's interaction in PreviewPanel (instantaneous and context-based) and the StreamOutput display (periodically fetched, with potential delays and missed real-time synchronization).
+
+Why is this causing your issue?
+PreviewPanel immediately updates positions, relying on React context state (layers, updateLayerPosition).
+
+StreamOutput depends on an API-fetch loop, which inherently has latency and will never perfectly align visually with instantaneous changes done locally by the user.
+
+Recommended Solution:
+The immediate solution involves aligning both interfaces through a single, synchronized state source. Specifically:
+
+WebSocket or Context Sharing:
+
+Ensure both components (PreviewPanel and StreamOutput) use the same WebSocket event source or React context (LayoutContext). Avoid separate queries for real-time state, or significantly reduce the fetch interval to near real-time (50-100ms).
+
+Unified Real-Time State Management:
+
+Both the Preview and Stream views should reference exactly the same data source for the layout, ideally a shared context (easiest approach), or at least a shared real-time WebSocket update.
+
+Immediate Refetch or Push Update:
+
+When PreviewPanel updates positions, push these changes immediately to StreamOutput via WebSocket or a global context state. Avoid polling for updates in the stream viewer.
+
+How to Implement This (Quick Practical Steps):
+Update StreamOutput.tsx to directly utilize LayoutContext instead of fetching via /api/active-layout.
+
+typescript
+Copy
+Edit
+const { layers } = useLayoutContext(); // Use same context as PreviewPanel
+Remove or reduce the periodic fetch loop (useQuery) in StreamOutput to avoid unnecessary latency.
+
+Verify that WebSocket (wsConnection in LayoutContext) correctly broadcasts changes instantly to all listeners, including the stream output if a WebSocket-based approach is used.

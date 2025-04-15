@@ -1,0 +1,121 @@
+How to Keep a Shared Layout But Different Scales:
+Your confusion arises from the idea that using the same data source means they'll look exactly the same size visually. But you don't have to display the same absolute pixel size—only the positions and sizes relative to a common baseline.
+
+The trick is:
+
+Store positions and sizes in a single, standard coordinate system (e.g., a percentage-based or fixed resolution like 1920x1080) in the shared context.
+
+Have each view (Preview and StreamOutput) convert these standard positions/sizes into the correct absolute pixels based on the display area.
+
+Practical Example:
+Suppose your shared data looks like this in the context (LayoutContext):
+
+javascript
+Copy
+Edit
+layers: [
+  {
+    id: 1,
+    position: { x: 960, y: 540 }, // standard coordinate system (1920x1080)
+    size: { width: 400, height: 400 },
+    visible: true,
+    zIndex: 10
+  },
+  // more layers...
+]
+Your PreviewPanel might display these coordinates scaled down (e.g., half size or smaller):
+
+javascript
+Copy
+Edit
+const scaleFactor = 0.5; // Preview at half scale (960x540 visually)
+const previewPosition = {
+  x: layer.position.x * scaleFactor,
+  y: layer.position.y * scaleFactor,
+};
+const previewSize = {
+  width: layer.size.width * scaleFactor,
+  height: layer.size.height * scaleFactor,
+};
+Your StreamOutput always displays the exact 1080p full resolution coordinates directly (scale factor = 1):
+
+javascript
+Copy
+Edit
+const streamPosition = {
+  x: layer.position.x, // no scale factor needed, already 1080p native
+  y: layer.position.y,
+};
+const streamSize = {
+  width: layer.size.width,
+  height: layer.size.height,
+};
+Why This Works:
+Single Source of Truth: Both components pull layout data from the exact same shared state (LayoutContext), ensuring no discrepancies.
+
+Flexible Visual Display: Each component independently decides how big or small to visually render layers based on a simple scale factor.
+
+No Delay or Fetch Issues: No latency or differences caused by separate polling APIs or delayed sync intervals.
+
+Quick Implementation (Code Changes):
+Update StreamOutput.tsx to use context and no additional fetch logic:
+
+typescript
+Copy
+Edit
+import { useLayoutContext } from "@/context/LayoutContext";
+
+export function StreamOutput({ aspectRatio = '16:9' }) {
+  const { layers } = useLayoutContext(); // DIRECT SHARED CONTEXT
+
+  return (
+    <div 
+      className="stream-output" 
+      style={{ width: '1920px', height: '1080px', position: 'relative' }}
+    >
+      {layers.filter(layer => layer.visible).sort((a, b) => a.zIndex - b.zIndex).map(layer => (
+        <div key={layer.id} style={{
+          position: 'absolute',
+          left: layer.position.x,
+          top: layer.position.y,
+          width: layer.size.width,
+          height: layer.size.height,
+          zIndex: layer.zIndex,
+          // additional layer rendering...
+        }}>
+          {/* render layer content */}
+        </div>
+      ))}
+    </div>
+  );
+}
+And your PreviewPanel.tsx applies a simple visual scaling:
+
+typescript
+Copy
+Edit
+const scaleFactor = 0.5; // compressed preview for UI
+
+return (
+  <div ref={previewRef} style={{ 
+      width: `${1920 * scaleFactor}px`,
+      height: `${1080 * scaleFactor}px`,
+      position: 'relative'
+    }}>
+    {layers.filter(layer => layer.visible).sort((a, b) => a.zIndex - b.zIndex).map(layer => (
+      <div key={layer.id} style={{
+        position: 'absolute',
+        left: layer.position.x * scaleFactor,
+        top: layer.position.y * scaleFactor,
+        width: layer.size.width * scaleFactor,
+        height: layer.size.height * scaleFactor,
+        zIndex: layer.zIndex,
+        cursor: 'move',
+        // additional styles for preview interactivity...
+      }}
+      onMouseDown={(e) => startDrag(e, layer.id)}
+      >
+        {/* render layer content */}
+      </div>
+    ))}
+  </div>

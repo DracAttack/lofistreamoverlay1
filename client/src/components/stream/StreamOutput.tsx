@@ -5,10 +5,15 @@ import { QuoteOverlay } from "./QuoteOverlay";
 import { SpotifyWidget } from "./SpotifyWidget";
 import { VideoOverlay } from "./VideoOverlay";
 import { TimerOverlay } from "./TimerOverlay";
+import { useLayoutContext } from "@/context/LayoutContext";
 
 interface StreamOutputProps {
   aspectRatio?: string;
 }
+
+// Base resolution constants for 1080p standard
+const BASE_WIDTH = 1920;
+const BASE_HEIGHT = 1080;
 
 export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -16,15 +21,9 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
   const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
   const [bgVideo, setBgVideo] = useState("");
 
-  // Fetch active layout instead of layers directly
-  // This ensures we get the same layer data that the PreviewPanel is working with
-  const { data: activeLayoutData } = useQuery<{ layers: Layer[] }>({
-    queryKey: ['/api/active-layout'],
-    refetchInterval: 1000 // Check more frequently for real-time updates
-  });
-  
-  // Extract layers from the active layout
-  const layers = activeLayoutData?.layers || [];
+  // Use the LayoutContext directly instead of API fetching
+  // This ensures both Preview and Stream views share the exact same source data
+  const { layers } = useLayoutContext();
 
   // Fetch quotes
   const { data: quotesData = [] } = useQuery<Quote[]>({
@@ -66,35 +65,60 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
     }
   }, [quotes]);
 
-  // Watch for aspect ratio changes
+  // Auto-scale the output to fit the container while maintaining 1920x1080 coordinates
   useEffect(() => {
     // Get aspect ratio from props or document data attribute
     const docAspect = document.documentElement.getAttribute('data-aspect-ratio');
     const aspectToUse = aspectRatio || docAspect || '16:9';
     
-    // Apply the aspect ratio to the container
-    if (containerRef.current) {
-      containerRef.current.classList.remove(
-        'aspect-video', 'aspect-[4/3]', 'aspect-square'
-      );
+    // Function to calculate and apply the scaling factor
+    const applyScaling = () => {
+      if (!containerRef.current) return;
       
-      if (aspectToUse === '16:9') {
-        containerRef.current.classList.add('aspect-video');
-      } else if (aspectToUse === '4:3') {
-        containerRef.current.classList.add('aspect-[4/3]');
-      } else if (aspectToUse === '1:1') {
-        containerRef.current.classList.add('aspect-square');
+      const parentWidth = containerRef.current.parentElement?.clientWidth || window.innerWidth;
+      
+      // Calculate how much we need to scale down
+      const scaleFactor = Math.min(1, parentWidth / BASE_WIDTH);
+      
+      // Apply the appropriate transform scale
+      containerRef.current.style.transform = `scale(${scaleFactor})`;
+      
+      // Adjust the container height to account for the scaling
+      containerRef.current.style.height = `${BASE_HEIGHT}px`;
+      containerRef.current.style.width = `${BASE_WIDTH}px`;
+      
+      // Set the parent container's height to match the scaled height
+      if (containerRef.current.parentElement) {
+        containerRef.current.parentElement.style.height = `${BASE_HEIGHT * scaleFactor}px`;
+        containerRef.current.parentElement.style.overflow = 'hidden';
       }
-    }
+    };
+    
+    // Apply scaling immediately
+    applyScaling();
+    
+    // Reapply scaling on window resize
+    window.addEventListener('resize', applyScaling);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', applyScaling);
+    };
   }, [aspectRatio]);
 
   return (
     <div 
       ref={containerRef}
-      className="relative aspect-video w-full max-h-screen overflow-hidden bg-background"
+      className="relative overflow-hidden bg-background stream-output"
       style={{ 
         margin: '0 auto',
-        position: 'relative' 
+        position: 'relative',
+        width: '1920px',
+        height: '1080px',
+        maxWidth: '100%',
+        aspectRatio: aspectRatio === '4:3' ? '4/3' : aspectRatio === '1:1' ? '1/1' : '16/9',
+        transform: 'scale(1)',
+        transformOrigin: 'top left'
       }}
     >
       {/* Render all layers in z-index order */}
