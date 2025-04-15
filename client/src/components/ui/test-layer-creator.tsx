@@ -3,6 +3,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useLayoutContext } from '@/context/LayoutContext';
 import { apiRequest } from '@/lib/queryClient';
 import { Layer } from '@/lib/types';
+import { queryClient } from '@/lib/queryClient';
 
 /**
  * Component to create a test layer for debugging position syncing
@@ -19,7 +20,7 @@ export function TestLayerCreator() {
     
     try {
       // Create a new test layer with a colored rectangle
-      const newLayer = await apiRequest('POST', '/api/layers', {
+      const response = await apiRequest('POST', '/api/layers', {
         name: `Test Layer ${Date.now()}`,
         type: 'logo',
         position: {
@@ -39,13 +40,19 @@ export function TestLayerCreator() {
         visible: true
       });
 
+      // Parse the response to get the actual layer data
+      const newLayer = await response.json();
+
       toast({
         title: "Test layer created",
         description: "Use this layer to test drag & resize synchronization"
       });
       
-      // Update current layers
-      setLayers(prevLayers => [...prevLayers, newLayer as Layer]);
+      // Invalidate queries to refresh the layers
+      queryClient.invalidateQueries({ queryKey: ['/api/layers'] });
+      
+      // Update current layers with the new layer from server
+      setLayers(prevLayers => [...prevLayers, newLayer]);
     } catch (error) {
       console.error("Failed to create test layer:", error);
       toast({
