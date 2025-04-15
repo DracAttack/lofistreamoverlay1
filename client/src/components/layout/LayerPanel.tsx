@@ -34,6 +34,37 @@ export function LayerPanel() {
       });
     }
   };
+  
+  const handleDeleteLayer = async (layerId: number) => {
+    if (!confirm("Are you sure you want to delete this layer? This action cannot be undone.")) {
+      return;
+    }
+    
+    try {
+      await apiRequest("DELETE", `/api/layers/${layerId}`);
+      
+      // Update local state
+      const filteredLayers = layers.filter(layer => layer.id !== layerId);
+      setLayers(filteredLayers);
+      
+      // Clear selected layer if it was deleted
+      setSelectedLayer((prev) => prev?.id === layerId ? null : prev);
+      
+      // Invalidate cache
+      queryClient.invalidateQueries({ queryKey: ['/api/layers'] });
+      
+      toast({
+        title: "Success",
+        description: "Layer deleted successfully"
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete layer",
+        variant: "destructive"
+      });
+    }
+  };
 
   const handleAddLayer = async () => {
     if (!newLayerName.trim()) {
@@ -181,6 +212,16 @@ export function LayerPanel() {
                     }}
                   >
                     <i className={layer.visible ? "ri-eye-line" : "ri-eye-off-line"}></i>
+                  </button>
+                  <button 
+                    className="text-foreground/70 hover:text-destructive transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteLayer(layer.id);
+                    }}
+                    title="Delete layer"
+                  >
+                    <i className="ri-delete-bin-line"></i>
                   </button>
                   <div className="relative inline-block w-10 mr-2 align-middle select-none">
                     <input 
