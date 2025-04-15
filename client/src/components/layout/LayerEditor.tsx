@@ -405,7 +405,11 @@ export function LayerEditor() {
               <input 
                 type="number" 
                 value={scheduleInterval} 
-                onChange={(e) => setScheduleInterval(parseInt(e.target.value, 10) || 60)}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value, 10);
+                  console.log("Setting scheduleInterval:", value);
+                  setScheduleInterval(value || 60);
+                }}
                 min="1"
                 className="w-full bg-background border border-secondary/30 rounded px-2 py-1 text-sm"
               />
@@ -418,7 +422,11 @@ export function LayerEditor() {
               <input 
                 type="number" 
                 value={scheduleDuration} 
-                onChange={(e) => setScheduleDuration(parseInt(e.target.value, 10) || 5)}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value, 10);
+                  console.log("Setting scheduleDuration:", value);
+                  setScheduleDuration(value || 5);
+                }}
                 min="1"
                 className="w-full bg-background border border-secondary/30 rounded px-2 py-1 text-sm"
               />
@@ -428,7 +436,10 @@ export function LayerEditor() {
               <input 
                 type="checkbox" 
                 checked={scheduleAutoHide} 
-                onChange={(e) => setScheduleAutoHide(e.target.checked)}
+                onChange={(e) => {
+                  console.log("Setting scheduleAutoHide:", e.target.checked);
+                  setScheduleAutoHide(e.target.checked);
+                }}
                 className="h-4 w-4 rounded border-secondary"
               />
               <label className="text-xs text-foreground/70">Auto-hide when inactive</label>

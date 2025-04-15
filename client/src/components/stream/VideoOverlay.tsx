@@ -45,6 +45,8 @@ export function VideoOverlay({
   const [isVisible, setIsVisible] = useState(preview || !schedule.enabled || !schedule.autoHide);
   const [lastActivation, setLastActivation] = useState<number>(0);
   const [isTransparentWebm, setIsTransparentWebm] = useState(false);
+  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
+  const [scheduleActive, setScheduleActive] = useState(false);
   
   // Check if it's a transparent WebM file
   useEffect(() => {
@@ -53,60 +55,88 @@ export function VideoOverlay({
     }
   }, [source]);
   
-  // Schedule activation logic
+  // Schedule activation logic - only runs when not in preview mode
   useEffect(() => {
-    if (!schedule.enabled || preview) {
+    if (preview || !schedule.enabled) {
       return;
     }
+
+    console.log("Schedule settings:", {
+      enabled: schedule.enabled,
+      interval: schedule.interval,
+      duration: schedule.duration,
+      autoHide: schedule.autoHide
+    });
     
-    // Initial activation on component mount
-    if (lastActivation === 0) {
+    // Function to activate the overlay
+    const activateOverlay = () => {
+      console.log("Activating overlay");
       setIsVisible(true);
-      setLastActivation(Date.now());
+      setScheduleActive(true);
       
-      // If autoHide is enabled, hide after duration
+      // Reset video to beginning
+      if (videoRef.current) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play();
+      }
+      
+      // Schedule hide after duration
       if (schedule.autoHide) {
-        const hideTimer = setTimeout(() => {
+        // Clear any existing timeout
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        
+        // Set new timeout to hide the overlay
+        const newTimeoutId = setTimeout(() => {
+          console.log("Hiding overlay after duration", schedule.duration);
           setIsVisible(false);
+          setScheduleActive(false);
         }, (schedule.duration || 5) * 1000);
         
-        return () => clearTimeout(hideTimer);
+        setTimeoutId(newTimeoutId);
       }
+    };
+    
+    // Immediately activate on first mount
+    if (lastActivation === 0) {
+      activateOverlay();
+      setLastActivation(Date.now());
     }
     
-    // Set up interval for future activations
+    // Set up interval for scheduled activation
     const intervalId = setInterval(() => {
-      // Calculate if we should activate
       const now = Date.now();
-      const timeSinceLastActivation = (now - lastActivation) / 1000;
+      const elapsedSeconds = (now - lastActivation) / 1000;
       
-      if (timeSinceLastActivation >= (schedule.interval || 600)) {
-        // Time to activate
-        setIsVisible(true);
+      console.log("Checking schedule:", { 
+        elapsedSeconds, 
+        interval: schedule.interval,
+        scheduleActive
+      });
+      
+      if (elapsedSeconds >= (schedule.interval || 600) && !scheduleActive) {
+        console.log("Time to reactivate overlay");
+        activateOverlay();
         setLastActivation(now);
-        
-        // Reset video to beginning if there's a video element
-        if (videoRef.current) {
-          videoRef.current.currentTime = 0;
-          videoRef.current.play();
-        }
-        
-        // If autoHide, set up hide timer
-        if (schedule.autoHide) {
-          setTimeout(() => {
-            setIsVisible(false);
-          }, (schedule.duration || 5) * 1000);
-        }
       }
     }, 1000); // Check every second
     
-    return () => clearInterval(intervalId);
-  }, [schedule.enabled, schedule.interval, schedule.duration, schedule.autoHide, lastActivation, preview]);
+    return () => {
+      clearInterval(intervalId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [schedule.enabled, schedule.interval, schedule.duration, 
+      schedule.autoHide, lastActivation, preview, scheduleActive]);
   
-  // Handle video end event for non-looping videos
+  // Handle video end for non-looping videos in scheduled mode
   const handleVideoEnded = () => {
-    if (!loop && schedule.autoHide) {
+    if (!loop && schedule.autoHide && !preview && schedule.enabled) {
+      console.log("Video ended, hiding overlay");
       setIsVisible(false);
+      setScheduleActive(false);
     }
   };
   
