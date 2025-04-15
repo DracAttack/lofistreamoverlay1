@@ -1,0 +1,68 @@
+🧨 PROBLEM:
+The Preview UI updates layer positions in local context, but the Stream Output UI fetches layer positions from the API, which are never being updated with the drag/drop actions.
+
+🧠 In Plain English:
+You're dragging things around on the Preview screen
+
+But those new positions are only saved in memory (inside React context)
+
+The StreamOutput fetches fresh data from /api/layers, which still has the original, untouched layout
+
+That’s why your elements show up in the same spot on the stream output no matter what.
+
+✅ SOLUTION (What Needs to Happen)
+In your PreviewPanel.tsx:
+
+When a user drags or resizes a layer, you must call a backend API that:
+
+Updates the database (or whatever API /api/layers pulls from)
+
+Ensures those new positions are reflected for StreamOutput.tsx
+
+You already have apiRequest() and queryClient imported — you're nearly there.
+
+✅ Fix (Add This to Your handleDrag or updateLayerPosition Logic)
+After updating position client-side, do this:
+
+ts
+Copy
+Edit
+await apiRequest(`/api/layers/${layer.id}`, {
+  method: "PATCH",
+  body: {
+    position: {
+      x,
+      y,
+      width: layer.position.width,
+      height: layer.position.height,
+    },
+  },
+});
+
+// Invalidate the layer query to reflect changes everywhere
+queryClient.invalidateQueries(['/api/layers']);
+Example patch call:
+If your backend is set up with a PATCH /api/layers/:id, this will sync the new position to your database or in-memory store used by /api/layers.
+
+👇 You Should Place This Inside:
+The part of handleDrag or handleDrop where the final position is committed.
+
+Or inside your existing updateLayerPosition() method if you centralize updates there.
+
+🔄 And in StreamOutput.tsx — You're Already Good!
+ts
+Copy
+Edit
+const { data: layers = [] } = useQuery<Layer[]>({
+  queryKey: ['/api/layers'],
+  refetchInterval: 5000
+});
+This means the stream view will automatically reflect new positions as long as they’re saved properly.
+
+💥 Once You Do This:
+Stream preview becomes WYSIWYG
+
+Drag something in Preview → it updates in realtime on the stream
+
+You'll be one step away from full live editing
+

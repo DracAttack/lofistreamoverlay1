@@ -37,6 +37,10 @@ export function PreviewPanel() {
     setDragOffset({ x: offsetX, y: offsetY });
   };
 
+  // Use a reference to track the last time we synced to avoid too many API calls
+  const lastSyncTimeRef = useRef(0);
+  const SYNC_THROTTLE_MS = 100; // Only sync every 100ms during active drag
+  
   const handleDrag = (e: React.MouseEvent) => {
     if (!isDragging || dragTarget === null || !previewRef.current) return;
     
@@ -44,6 +48,7 @@ export function PreviewPanel() {
     const x = Math.max(0, Math.min(rect.width - 10, e.clientX - rect.left - dragOffset.x));
     const y = Math.max(0, Math.min(rect.height - 10, e.clientY - rect.top - dragOffset.y));
     
+    // Update local UI immediately for responsive feel
     const updatedLayers = layers.map(layer => {
       if (layer.id === dragTarget) {
         return {
@@ -58,7 +63,20 @@ export function PreviewPanel() {
       return layer;
     });
     
+    // Update UI immediately
     setLayers(updatedLayers);
+    
+    // Throttle the database updates during drag to avoid overwhelming the server
+    const now = Date.now();
+    if (now - lastSyncTimeRef.current > SYNC_THROTTLE_MS) {
+      lastSyncTimeRef.current = now;
+      
+      // Send update to server during drag - but throttled
+      updateLayerPosition(dragTarget, { x, y })
+        .catch(error => {
+          console.error("Error updating position during drag:", error);
+        });
+    }
   };
 
   const startResize = (e: React.MouseEvent, layerId: number, direction: string) => {
@@ -115,6 +133,14 @@ export function PreviewPanel() {
       newY = currentY;
     }
     
+    // Create new position object with updates
+    const newPosition = {
+      x: newX,
+      y: newY,
+      width: newWidth,
+      height: newHeight
+    };
+    
     // Update layers with new dimensions
     const updatedLayers = layers.map(l => {
       if (l.id === dragTarget) {
@@ -122,17 +148,27 @@ export function PreviewPanel() {
           ...l,
           position: {
             ...l.position,
-            x: newX,
-            y: newY,
-            width: newWidth,
-            height: newHeight
+            ...newPosition
           }
         };
       }
       return l;
     });
     
+    // Update UI immediately
     setLayers(updatedLayers);
+    
+    // Throttle the database updates during resize to avoid overwhelming the server
+    const now = Date.now();
+    if (now - lastSyncTimeRef.current > SYNC_THROTTLE_MS) {
+      lastSyncTimeRef.current = now;
+      
+      // Send update to server during resize - but throttled
+      updateLayerPosition(dragTarget, newPosition)
+        .catch(error => {
+          console.error("Error updating position during resize:", error);
+        });
+    }
   };
 
   const endResize = async () => {
