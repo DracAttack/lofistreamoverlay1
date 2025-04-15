@@ -10,6 +10,8 @@ export function PreviewPanel() {
   const { layers, selectedLayer, setLayers } = useLayoutContext();
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeDirection, setResizeDirection] = useState<string | null>(null);
   const [dragTarget, setDragTarget] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const previewRef = useRef<HTMLDivElement>(null);
@@ -58,6 +60,104 @@ export function PreviewPanel() {
     setLayers(updatedLayers);
   };
 
+  const startResize = (e: React.MouseEvent, layerId: number, direction: string) => {
+    e.stopPropagation(); // Prevent drag from starting
+    
+    if (!previewRef.current) return;
+    
+    const layer = layers.find(l => l.id === layerId);
+    if (!layer) return;
+    
+    setIsResizing(true);
+    setResizeDirection(direction);
+    setDragTarget(layerId);
+
+    // Set drag offset for calculations
+    const rect = previewRef.current.getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+    setDragOffset({ x: offsetX, y: offsetY });
+  };
+
+  const handleResize = (e: React.MouseEvent) => {
+    if (!isResizing || dragTarget === null || !resizeDirection || !previewRef.current) return;
+    
+    const layer = layers.find(l => l.id === dragTarget);
+    if (!layer) return;
+
+    const rect = previewRef.current.getBoundingClientRect();
+    const currentX = e.clientX - rect.left;
+    const currentY = e.clientY - rect.top;
+    
+    // Calculate new dimensions based on resize direction
+    let newWidth = typeof layer.position.width === 'number' ? layer.position.width : 200;
+    let newHeight = typeof layer.position.height === 'number' ? layer.position.height : 150;
+    let newX = layer.position.x;
+    let newY = layer.position.y;
+    
+    if (resizeDirection.includes('e')) { // East (right)
+      newWidth = Math.max(50, currentX - layer.position.x);
+    }
+    if (resizeDirection.includes('w')) { // West (left)
+      const width = typeof layer.position.width === 'number' ? layer.position.width : 200;
+      const right = layer.position.x + width;
+      newWidth = Math.max(50, right - currentX);
+      newX = currentX;
+    }
+    if (resizeDirection.includes('s')) { // South (bottom)
+      newHeight = Math.max(50, currentY - layer.position.y);
+    }
+    if (resizeDirection.includes('n')) { // North (top)
+      const height = typeof layer.position.height === 'number' ? layer.position.height : 150;
+      const bottom = layer.position.y + height;
+      newHeight = Math.max(50, bottom - currentY);
+      newY = currentY;
+    }
+    
+    // Update layers with new dimensions
+    const updatedLayers = layers.map(l => {
+      if (l.id === dragTarget) {
+        return {
+          ...l,
+          position: {
+            ...l.position,
+            x: newX,
+            y: newY,
+            width: newWidth,
+            height: newHeight
+          }
+        };
+      }
+      return l;
+    });
+    
+    setLayers(updatedLayers);
+  };
+
+  const endResize = async () => {
+    if (isResizing && dragTarget !== null) {
+      const layer = layers.find(l => l.id === dragTarget);
+      if (layer) {
+        try {
+          await apiRequest("PUT", `/api/layers/${dragTarget}`, {
+            position: layer.position
+          });
+          queryClient.invalidateQueries({ queryKey: ['/api/layers'] });
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: "Failed to update layer dimensions",
+            variant: "destructive"
+          });
+        }
+      }
+    }
+    
+    setIsResizing(false);
+    setResizeDirection(null);
+    setDragTarget(null);
+  };
+
   const endDrag = async () => {
     if (isDragging && dragTarget !== null) {
       const layer = layers.find(l => l.id === dragTarget);
@@ -92,6 +192,18 @@ export function PreviewPanel() {
       };
     }
   }, [isDragging, dragTarget]);
+
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleResize as any);
+      document.addEventListener('mouseup', endResize);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleResize as any);
+        document.removeEventListener('mouseup', endResize);
+      };
+    }
+  }, [isResizing, dragTarget, resizeDirection]);
 
   const handleSaveLayout = async () => {
     const name = prompt("Enter a name for this layout:");
@@ -165,9 +277,9 @@ export function PreviewPanel() {
           aspectRatio === "4:3" ? "aspect-[4/3]" : 
           "aspect-square"
         }`}
-        onMouseMove={isDragging ? handleDrag : undefined}
-        onMouseUp={isDragging ? endDrag : undefined}
-        onMouseLeave={isDragging ? endDrag : undefined}
+        onMouseMove={isDragging ? handleDrag : isResizing ? handleResize : undefined}
+        onMouseUp={isDragging ? endDrag : isResizing ? endResize : undefined}
+        onMouseLeave={isDragging ? endDrag : isResizing ? endResize : undefined}
       >
         {layers
           .filter(layer => layer.visible)
@@ -268,11 +380,50 @@ export function PreviewPanel() {
                   </div>
                 )}
 
-                {/* Show layer controls if selected */}
-                {selectedLayer?.id === layer.id && (
-                  <div className="absolute -top-6 left-0 bg-primary text-xs text-white px-2 py-1 rounded">
-                    Layer #{layer.id}: {layer.name}
-                  </div>
+                {/* Resize handles for selected layers */}
+                {selectedLayer?.id === layer.id && !isBackground && (
+                  <>
+                    {/* Layer label */}
+                    <div className="absolute -top-6 left-0 bg-primary text-xs text-white px-2 py-1 rounded">
+                      Layer #{layer.id}: {layer.name}
+                    </div>
+
+                    {/* Resize handles */}
+                    <div 
+                      className="absolute right-0 top-0 bottom-0 w-3 cursor-e-resize bg-primary/30 hover:bg-primary/50" 
+                      onMouseDown={(e) => startResize(e, layer.id, 'e')}
+                    ></div>
+                    <div 
+                      className="absolute left-0 top-0 bottom-0 w-3 cursor-w-resize bg-primary/30 hover:bg-primary/50"
+                      onMouseDown={(e) => startResize(e, layer.id, 'w')}
+                    ></div>
+                    <div 
+                      className="absolute top-0 left-0 right-0 h-3 cursor-n-resize bg-primary/30 hover:bg-primary/50"
+                      onMouseDown={(e) => startResize(e, layer.id, 'n')}
+                    ></div>
+                    <div 
+                      className="absolute bottom-0 left-0 right-0 h-3 cursor-s-resize bg-primary/30 hover:bg-primary/50"
+                      onMouseDown={(e) => startResize(e, layer.id, 's')}
+                    ></div>
+                    
+                    {/* Corner resize handles */}
+                    <div 
+                      className="absolute top-0 right-0 w-6 h-6 cursor-ne-resize bg-primary/50 hover:bg-primary/70"
+                      onMouseDown={(e) => startResize(e, layer.id, 'ne')}
+                    ></div>
+                    <div 
+                      className="absolute top-0 left-0 w-6 h-6 cursor-nw-resize bg-primary/50 hover:bg-primary/70"
+                      onMouseDown={(e) => startResize(e, layer.id, 'nw')}
+                    ></div>
+                    <div 
+                      className="absolute bottom-0 right-0 w-6 h-6 cursor-se-resize bg-primary/50 hover:bg-primary/70"
+                      onMouseDown={(e) => startResize(e, layer.id, 'se')}
+                    ></div>
+                    <div 
+                      className="absolute bottom-0 left-0 w-6 h-6 cursor-sw-resize bg-primary/50 hover:bg-primary/70"
+                      onMouseDown={(e) => startResize(e, layer.id, 'sw')}
+                    ></div>
+                  </>
                 )}
               </div>
             );
