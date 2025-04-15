@@ -24,6 +24,13 @@ export function LayerEditor() {
   const [timerDuration, setTimerDuration] = useState(300); // 5 minutes default
   const [timerDirection, setTimerDirection] = useState<'up' | 'down'>('down');
   const [timerFormat, setTimerFormat] = useState<'hh:mm:ss' | 'mm:ss' | 'ss'>('mm:ss');
+  
+  // Scheduling options
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduleInterval, setScheduleInterval] = useState(600); // 10 minutes default
+  const [scheduleDuration, setScheduleDuration] = useState(5); // 5 seconds default
+  const [scheduleAutoHide, setScheduleAutoHide] = useState(true);
+  const [scheduleLoop, setScheduleLoop] = useState(true);
   const { toast } = useToast();
   
   // Fetch quotes for the quote selector
@@ -57,6 +64,13 @@ export function LayerEditor() {
       setTimerDuration(selectedLayer.content?.timerDuration || 300);
       setTimerDirection(selectedLayer.content?.timerDirection || 'down');
       setTimerFormat(selectedLayer.content?.timerFormat || 'mm:ss');
+      
+      // Load scheduling settings
+      setScheduleEnabled(selectedLayer.content?.scheduleEnabled || false);
+      setScheduleInterval(selectedLayer.content?.scheduleInterval || 600);
+      setScheduleDuration(selectedLayer.content?.scheduleDuration || 5);
+      setScheduleAutoHide(selectedLayer.content?.scheduleAutoHide !== false); // default to true
+      setScheduleLoop(selectedLayer.content?.scheduleLoop !== false); // default to true
     }
   }, [selectedLayer]);
 
@@ -114,7 +128,14 @@ export function LayerEditor() {
           timerDuration,
           timerDirection,
           timerFormat,
-          timerStartTime: timerDirection === 'up' ? new Date().toISOString() : undefined
+          timerStartTime: timerDirection === 'up' ? new Date().toISOString() : undefined,
+          
+          // Scheduling options
+          scheduleEnabled,
+          scheduleInterval,
+          scheduleDuration,
+          scheduleAutoHide,
+          scheduleLoop
         },
         zIndex
       };
@@ -356,6 +377,88 @@ export function LayerEditor() {
                 <p>Timer will count down from {timerDuration} seconds to 0.</p>
               ) : (
                 <p>Timer will count up from 0 seconds when the stream starts.</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Scheduling Options */}
+      <div className="mb-4 border-t border-secondary/30 pt-4">
+        <div className="flex items-center justify-between mb-3">
+          <label className="font-semibold text-sm">Playback Schedule</label>
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-foreground/70">Enable Scheduling</span>
+            <input 
+              type="checkbox" 
+              checked={scheduleEnabled} 
+              onChange={(e) => setScheduleEnabled(e.target.checked)}
+              className="h-4 w-4 rounded border-secondary"
+            />
+          </div>
+        </div>
+        
+        {scheduleEnabled && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-foreground/70 mb-1">Show every (seconds)</label>
+              <input 
+                type="number" 
+                value={scheduleInterval} 
+                onChange={(e) => setScheduleInterval(parseInt(e.target.value, 10) || 60)}
+                min="1"
+                className="w-full bg-background border border-secondary/30 rounded px-2 py-1 text-sm"
+              />
+              <span className="text-xs text-foreground/50 mt-1 block">
+                {Math.floor(scheduleInterval / 60)} min {scheduleInterval % 60} sec
+              </span>
+            </div>
+            <div>
+              <label className="block text-xs text-foreground/70 mb-1">Show for (seconds)</label>
+              <input 
+                type="number" 
+                value={scheduleDuration} 
+                onChange={(e) => setScheduleDuration(parseInt(e.target.value, 10) || 5)}
+                min="1"
+                className="w-full bg-background border border-secondary/30 rounded px-2 py-1 text-sm"
+              />
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <input 
+                type="checkbox" 
+                checked={scheduleAutoHide} 
+                onChange={(e) => setScheduleAutoHide(e.target.checked)}
+                className="h-4 w-4 rounded border-secondary"
+              />
+              <label className="text-xs text-foreground/70">Auto-hide when inactive</label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <input 
+                type="checkbox" 
+                checked={scheduleLoop} 
+                onChange={(e) => setScheduleLoop(e.target.checked)}
+                className="h-4 w-4 rounded border-secondary"
+              />
+              <label className="text-xs text-foreground/70">Loop playback</label>
+            </div>
+            
+            <div className="col-span-2 mt-2 bg-background/50 rounded p-2 text-xs text-foreground/70">
+              {scheduleAutoHide ? (
+                <p>
+                  {scheduleLoop ? 
+                    `Content will play ${scheduleDuration} seconds every ${scheduleInterval} seconds, and loop while visible.` :
+                    `Content will play once for ${scheduleDuration} seconds every ${scheduleInterval} seconds, then hide.`
+                  }
+                </p>
+              ) : (
+                <p>
+                  {scheduleLoop ?
+                    `Content will always be visible and restart playback every ${scheduleInterval} seconds.` : 
+                    `Content will always be visible and play once every ${scheduleInterval} seconds.`
+                  }
+                </p>
               )}
             </div>
           </div>

@@ -3,6 +3,7 @@ import { useLayoutContext } from "@/context/LayoutContext";
 import { SpotifyWidget } from "../stream/SpotifyWidget";
 import { QuoteOverlay } from "../stream/QuoteOverlay";
 import { TimerOverlay } from "../stream/TimerOverlay";
+import { VideoOverlay } from "../stream/VideoOverlay";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
@@ -307,7 +308,19 @@ export function PreviewPanel() {
                 className={`${selectedLayer?.id === layer.id ? 'outline outline-2 outline-primary' : ''}`}
               >
                 {/* Content based on asset type */}
-                {layer.content.source ? (
+                {layer.content.timerEnabled ? (
+                  // Timer overlay
+                  <TimerOverlay
+                    style={layer.style}
+                    timerConfig={{
+                      duration: layer.content.timerDuration || 300,
+                      direction: layer.content.timerDirection || 'down',
+                      startTime: layer.content.timerStartTime,
+                      format: layer.content.timerFormat || 'mm:ss'
+                    }}
+                    preview={true}
+                  />
+                ) : layer.content.source ? (
                   <>
                     {/\.(mp4|webm|ogg|mov)$/i.test(layer.content.source) ? (
                       // Video content

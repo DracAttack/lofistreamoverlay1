@@ -40,6 +40,14 @@ export interface LayerContent {
   timerDirection?: 'up' | 'down';
   timerStartTime?: string; // ISO string
   timerFormat?: 'hh:mm:ss' | 'mm:ss' | 'ss';
+  
+  // Scheduling options
+  scheduleEnabled?: boolean;
+  scheduleInterval?: number; // time between activations in seconds
+  scheduleDuration?: number; // how long to stay visible in seconds
+  scheduleAutoHide?: boolean; // hide when not in active period
+  scheduleLoop?: boolean; // if false, play only once per activation
+  
   [key: string]: any;
 }
 
