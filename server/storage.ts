@@ -9,7 +9,7 @@ import {
   type ActiveLayout, type InsertActiveLayout
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -128,11 +128,23 @@ export class DatabaseStorage implements IStorage {
       // Then delete the asset itself
       const results = await db.delete(assets).where(eq(assets.id, id)).returning({ id: assets.id });
       
-      // Finally reset the auto-increment sequence for assets table so IDs start fresh
-      await db.execute(
-        `SELECT setval(pg_get_serial_sequence('assets', 'id'), 
-          COALESCE((SELECT MAX(id) FROM assets), 0));`
-      );
+      // Reset the auto-increment sequence for assets table so IDs start fresh
+      // If there are still assets, use MAX(id), otherwise use 1 to prevent "value 0" error
+      try {
+        const maxIdResult = await db.select({ maxId: sql`COALESCE(MAX(id), 0)` }).from(assets);
+        const maxId = maxIdResult[0]?.maxId || 0;
+        
+        if (maxId === 0) {
+          // If no rows left, set to 1 (minimum valid value for most sequences)
+          await db.execute(`ALTER SEQUENCE assets_id_seq RESTART WITH 1`);
+        } else {
+          // Otherwise set to the max ID
+          await db.execute(`SELECT setval('assets_id_seq', ${maxId}, true)`);
+        }
+      } catch (seqError) {
+        console.error("Error resetting asset sequence:", seqError);
+        // Continue anyway - this error shouldn't prevent asset deletion
+      }
       
       // For consistency, delete any files associated with this asset
       // (the actual file deletion would be handled by server/routes.ts)
@@ -182,10 +194,22 @@ export class DatabaseStorage implements IStorage {
       await this.updateActiveLayout(allLayers);
       
       // Reset the auto-increment sequence for layers so new IDs start fresh
-      await db.execute(
-        `SELECT setval(pg_get_serial_sequence('layers', 'id'), 
-          COALESCE((SELECT MAX(id) FROM layers), 0));`
-      );
+      // If there are still layers, use MAX(id), otherwise use 1 to prevent "value 0" error
+      try {
+        const maxIdResult = await db.select({ maxId: sql`COALESCE(MAX(id), 0)` }).from(layers);
+        const maxId = maxIdResult[0]?.maxId || 0;
+        
+        if (maxId === 0) {
+          // If no rows left, set to 1 (minimum valid value for most sequences)
+          await db.execute(`ALTER SEQUENCE layers_id_seq RESTART WITH 1`);
+        } else {
+          // Otherwise set to the max ID
+          await db.execute(`SELECT setval('layers_id_seq', ${maxId}, true)`);
+        }
+      } catch (seqError) {
+        console.error("Error resetting layer sequence:", seqError);
+        // Continue anyway - this error shouldn't prevent layer deletion
+      }
       
       return results.length > 0;
     } catch (error) {
