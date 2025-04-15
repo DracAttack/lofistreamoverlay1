@@ -41,6 +41,8 @@ export function LayerEditor() {
 
   useEffect(() => {
     if (selectedLayer) {
+      console.log("LayerEditor - Loading selectedLayer:", selectedLayer);
+      
       setPosition({ 
         x: selectedLayer.position.x || 0, 
         y: selectedLayer.position.y || 0 
@@ -56,7 +58,12 @@ export function LayerEditor() {
         backdropBlur: selectedLayer.style.backdropBlur || 'backdrop-blur-sm'
       });
       setZIndex(selectedLayer.zIndex || 10);
-      setSourceOption(selectedLayer.content?.source || "");
+      
+      // Explicitly handle the source properly
+      const currentSource = selectedLayer.content?.source || "";
+      console.log("LayerEditor - Setting sourceOption from layer:", currentSource);
+      setSourceOption(currentSource);
+      
       setRotationInterval(selectedLayer.content?.rotationInterval || 30);
       
       // Load timer settings
@@ -106,6 +113,10 @@ export function LayerEditor() {
   const handleSave = async () => {
     if (!selectedLayer) return;
 
+    // Debug the asset selection
+    console.log("LayerEditor - Save - Current sourceOption:", sourceOption);
+    console.log("LayerEditor - Save - selectedLayer content:", selectedLayer.content);
+    
     try {
       const updatedLayer = {
         ...selectedLayer,
@@ -139,6 +150,9 @@ export function LayerEditor() {
         },
         zIndex
       };
+      
+      // Debug the final updated layer
+      console.log("LayerEditor - Save - Final updatedLayer:", updatedLayer);
       
       // Update the layer in the API
       await apiRequest("PUT", `/api/layers/${selectedLayer.id}`, updatedLayer);
@@ -317,7 +331,14 @@ export function LayerEditor() {
         {/* Asset Selector */}
         <AssetSelector
           selectedAsset={sourceOption}
-          onAssetSelect={(assetPath) => setSourceOption(assetPath)}
+          onAssetSelect={(assetPath) => {
+            console.log("LayerEditor - Asset selected:", assetPath);
+            setSourceOption(assetPath);
+            // Debug immediately after setting
+            setTimeout(() => {
+              console.log("LayerEditor - sourceOption after setting:", sourceOption);
+            }, 0);
+          }}
         />
       </div>
 

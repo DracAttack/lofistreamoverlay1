@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Asset } from "@/lib/types";
 
@@ -9,11 +9,25 @@ interface AssetSelectorProps {
 
 export function AssetSelector({ selectedAsset, onAssetSelect }: AssetSelectorProps) {
   const [filter, setFilter] = useState<string>("all");
+  const isInitialMount = useRef(true);
   
   // Fetch all assets
   const { data: assets = [], isLoading } = useQuery<Asset[]>({
     queryKey: ['/api/assets'],
   });
+  
+  // Add debug logging
+  useEffect(() => {
+    console.log("AssetSelector - Current assets:", assets);
+    console.log("AssetSelector - Selected asset:", selectedAsset);
+    
+    // Auto-select the first asset if none is selected and assets exist
+    if (isInitialMount.current && assets.length > 0 && !selectedAsset) {
+      console.log("AssetSelector - Auto-selecting first asset:", assets[0].path);
+      onAssetSelect(assets[0].path);
+      isInitialMount.current = false;
+    }
+  }, [assets, selectedAsset, onAssetSelect]);
   
   // Filter assets by type
   const filteredAssets = filter === "all" 
@@ -85,7 +99,10 @@ export function AssetSelector({ selectedAsset, onAssetSelect }: AssetSelectorPro
                 className={`relative aspect-square rounded-md overflow-hidden border transition-all cursor-pointer hover:opacity-90 hover:border-secondary ${
                   selectedAsset === asset.path ? "border-primary ring-1 ring-primary" : "border-border"
                 }`}
-                onClick={() => onAssetSelect(asset.path)}
+                onClick={() => {
+                  console.log("AssetSelector - Selecting asset:", asset.path);
+                  onAssetSelect(asset.path);
+                }}
               >
                 {asset.type === "image" && (
                   <img 
