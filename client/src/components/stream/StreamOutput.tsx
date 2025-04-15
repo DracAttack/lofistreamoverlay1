@@ -210,6 +210,27 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
         transformOrigin: 'center'
       }}
     >
+      {/* CRITICAL DEBUGGING: Force render a test layer if no layers exist */}
+      {(!visibleLayers || visibleLayers.length === 0) && (
+        <div 
+          className="absolute bg-red-600 text-white"
+          style={{
+            left: '50px',
+            top: '50px',
+            width: '300px',
+            height: '100px',
+            zIndex: 999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 'bold',
+            padding: '10px',
+            textAlign: 'center'
+          }}
+        >
+          ⚠️ CRITICAL: No layers received from context! Check that LayoutContext is working properly.
+        </div>
+      )}
       {/* Render all layers in z-index order */}
       {visibleLayers.map(layer => {
         // IMPORTANT: For Stream Output, we ALWAYS use percentage values

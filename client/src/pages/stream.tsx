@@ -12,18 +12,59 @@ interface ActiveLayout {
 }
 
 export default function Stream() {
+  console.log("Stream page rendering...");
+  
   // CRITICAL FIX: We need to access BOTH layers and setLayers from context
   const { layers, setLayers } = useLayoutContext();
   const [isConnected, setIsConnected] = useState(false);
   
   // Debug what's in context right now (this is critical)
-  console.log("Stream page - layers in context:", layers);
+  console.log("Stream page - layers in context:", layers ? layers.length : 'UNDEFINED', 
+    layers ? layers.map(l => ({id: l.id, name: l.name})) : 'No layers');
   
-  // Fetch active layout from the server
-  const { isLoading, data: activeLayoutData } = useQuery<ActiveLayout>({
-    queryKey: ['/api/active-layout'],
-    refetchInterval: 5000, // Refetch every 5 seconds as a fallback
-  });
+  // Hard-code a test layer to see if we can force something to appear
+  useEffect(() => {
+    if (!layers || layers.length === 0) {
+      console.log("CRITICAL - No layers found, setting a test layer");
+      
+      // Create a test layer for debugging - use 'background' type to match schema
+      const testLayer = {
+        id: 999,
+        name: "TEST LAYER",
+        type: "background" as const, // Must match one of the allowed types in the schema
+        position: {
+          x: 100,
+          y: 100,
+          width: 400,
+          height: 200,
+          xPercent: 5,
+          yPercent: 9, 
+          widthPercent: 20,
+          heightPercent: 18
+        },
+        style: {
+          backgroundColor: "rgba(255, 0, 0, 0.5)",
+          textColor: "#ffffff",
+          borderRadius: "8px",
+          backdropBlur: "none"
+        },
+        content: {
+          text: "This is a test layer to debug rendering issues"
+        },
+        zIndex: 999,
+        visible: true
+      };
+      
+      // Try to force a layer to appear
+      setLayers([testLayer as Layer]);
+    }
+  }, [layers, setLayers]);
+    
+    // Fetch active layout from the server
+    const { isLoading, data: activeLayoutData } = useQuery<ActiveLayout>({
+      queryKey: ['/api/active-layout'],
+      refetchInterval: 5000, // Refetch every 5 seconds as a fallback
+    });
 
   // Use active layout data when available
   useEffect(() => {
@@ -115,6 +156,9 @@ export default function Stream() {
     return params.get('aspect') || '16:9';
   };
   
+  // Direct debugging of layers
+  console.log("STREAM PAGE RENDER - layers:", layers); 
+
   return (
     <div className="stream-container w-full h-screen flex items-center justify-center bg-black overflow-hidden">
       {!isConnected && !isLoading && (
@@ -122,6 +166,14 @@ export default function Stream() {
           WebSocket disconnected. Layouts may not update in real-time.
         </div>
       )}
+      
+      {/* CRITICAL: Display a red box if no layers are available */}
+      {(!layers || layers.length === 0) && (
+        <div className="fixed top-16 left-0 right-0 bg-red-600 text-white text-center p-2 z-50">
+          CRITICAL ERROR: No layers available in the LayoutContext - Check console for details
+        </div>
+      )}
+      
       {/* The StreamOutput component now uses the LayoutContext directly */}
       <StreamOutput aspectRatio={getAspectRatio()} />
     </div>

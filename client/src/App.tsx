@@ -27,8 +27,13 @@ function Router() {
 }
 
 function App() {
+  // Our critical issue appears to be that the LayoutContext isn't properly sharing data
+  // between the Preview Panel and Stream Output views
+  console.log("App remounting - this should create a fresh LayoutProvider context");
+  
   return (
     <QueryClientProvider client={queryClient}>
+      {/* CRITICAL: Ensure the LayoutProvider is properly wrapping ALL components */}
       <LayoutProvider>
         <Router />
         <Toaster />
