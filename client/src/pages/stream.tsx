@@ -63,6 +63,17 @@ export default function Stream() {
     };
   }, []);
 
+  // Get aspect ratio from query parameters
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const aspect = params.get('aspect');
+    
+    // Add aspect ratio to document as a data-attribute
+    if (aspect) {
+      document.documentElement.setAttribute('data-aspect-ratio', aspect);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-background text-foreground overflow-hidden">
       <StreamOutput />

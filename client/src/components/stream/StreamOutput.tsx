@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Layer, Quote, SpotifyNowPlaying } from "@/lib/types";
 import { QuoteOverlay } from "./QuoteOverlay";
@@ -6,7 +6,12 @@ import { SpotifyWidget } from "./SpotifyWidget";
 import { VideoOverlay } from "./VideoOverlay";
 import { TimerOverlay } from "./TimerOverlay";
 
-export function StreamOutput() {
+interface StreamOutputProps {
+  aspectRatio?: string;
+}
+
+export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
   const [bgVideo, setBgVideo] = useState("");
@@ -57,8 +62,37 @@ export function StreamOutput() {
     }
   }, [quotes]);
 
+  // Watch for aspect ratio changes
+  useEffect(() => {
+    // Get aspect ratio from props or document data attribute
+    const docAspect = document.documentElement.getAttribute('data-aspect-ratio');
+    const aspectToUse = aspectRatio || docAspect || '16:9';
+    
+    // Apply the aspect ratio to the container
+    if (containerRef.current) {
+      containerRef.current.classList.remove(
+        'aspect-video', 'aspect-[4/3]', 'aspect-square'
+      );
+      
+      if (aspectToUse === '16:9') {
+        containerRef.current.classList.add('aspect-video');
+      } else if (aspectToUse === '4:3') {
+        containerRef.current.classList.add('aspect-[4/3]');
+      } else if (aspectToUse === '1:1') {
+        containerRef.current.classList.add('aspect-square');
+      }
+    }
+  }, [aspectRatio]);
+
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-background">
+    <div 
+      ref={containerRef}
+      className="relative aspect-video w-full max-h-screen overflow-hidden bg-background"
+      style={{ 
+        margin: '0 auto',
+        position: 'relative' 
+      }}
+    >
       {/* Render all layers in z-index order */}
       {visibleLayers.map(layer => {
         // Set up position styles

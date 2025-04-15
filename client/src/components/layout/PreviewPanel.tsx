@@ -19,7 +19,7 @@ export function PreviewPanel() {
   const { toast } = useToast();
 
   const handleFullPreview = () => {
-    window.open("/stream", "_blank");
+    window.open(`/stream?aspect=${aspectRatio}`, "_blank");
   };
 
   const startDrag = (e: React.MouseEvent, layerId: number) => {
