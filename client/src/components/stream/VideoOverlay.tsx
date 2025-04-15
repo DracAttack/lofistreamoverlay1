@@ -47,6 +47,7 @@ export function VideoOverlay({
   const [isTransparentWebm, setIsTransparentWebm] = useState(false);
   const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
   const [scheduleActive, setScheduleActive] = useState(false);
+  const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
   
   // Check if it's a transparent WebM file
   useEffect(() => {
@@ -55,86 +56,110 @@ export function VideoOverlay({
     }
   }, [source]);
   
+  // Function to activate the overlay - defined outside useEffect to avoid recreation
+  const activateOverlay = () => {
+    console.log("Activating overlay");
+    setIsVisible(true);
+    setScheduleActive(true);
+    
+    // Reset video to beginning
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+      videoRef.current.play().catch(err => {
+        console.error("Error playing video:", err);
+      });
+    }
+    
+    // Schedule hide after duration if autoHide is enabled
+    if (schedule.autoHide) {
+      // Clear any existing timeout
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      
+      // Set new timeout to hide the overlay
+      const newTimeoutId = setTimeout(() => {
+        console.log("Hiding overlay after duration", schedule.duration);
+        setIsVisible(false);
+        setScheduleActive(false);
+      }, (schedule.duration || 5) * 1000);
+      
+      setTimeoutId(newTimeoutId);
+    }
+    
+    // Always update the last activation time
+    setLastActivation(Date.now());
+  };
+  
   // Schedule activation logic - only runs when not in preview mode
   useEffect(() => {
+    // Don't run scheduling in preview mode or when scheduling is disabled
     if (preview || !schedule.enabled) {
       return;
     }
 
-    console.log("Schedule settings:", {
+    console.log("VideoOverlay: Schedule settings initialized:", {
       enabled: schedule.enabled,
       interval: schedule.interval,
       duration: schedule.duration,
-      autoHide: schedule.autoHide
+      autoHide: schedule.autoHide,
+      loop
     });
-    
-    // Function to activate the overlay
-    const activateOverlay = () => {
-      console.log("Activating overlay");
-      setIsVisible(true);
-      setScheduleActive(true);
-      
-      // Reset video to beginning
-      if (videoRef.current) {
-        videoRef.current.currentTime = 0;
-        videoRef.current.play();
-      }
-      
-      // Schedule hide after duration
-      if (schedule.autoHide) {
-        // Clear any existing timeout
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-        
-        // Set new timeout to hide the overlay
-        const newTimeoutId = setTimeout(() => {
-          console.log("Hiding overlay after duration", schedule.duration);
-          setIsVisible(false);
-          setScheduleActive(false);
-        }, (schedule.duration || 5) * 1000);
-        
-        setTimeoutId(newTimeoutId);
-      }
-    };
     
     // Immediately activate on first mount
     if (lastActivation === 0) {
+      console.log("VideoOverlay: First activation");
       activateOverlay();
-      setLastActivation(Date.now());
     }
     
-    // Set up interval for scheduled activation
-    const intervalId = setInterval(() => {
+    // Clear any existing interval
+    if (intervalId) {
+      clearInterval(intervalId);
+    }
+    
+    // Set up new interval for scheduled activation
+    const newIntervalId = setInterval(() => {
       const now = Date.now();
       const elapsedSeconds = (now - lastActivation) / 1000;
       
-      console.log("Checking schedule:", { 
+      console.log("VideoOverlay: Checking schedule:", { 
         elapsedSeconds, 
         interval: schedule.interval,
-        scheduleActive
+        scheduleActive,
+        isVisible
       });
       
+      // Only activate if the interval has passed AND the overlay is not currently active
       if (elapsedSeconds >= (schedule.interval || 600) && !scheduleActive) {
-        console.log("Time to reactivate overlay");
+        console.log("VideoOverlay: Time to reactivate overlay after interval");
         activateOverlay();
-        setLastActivation(now);
       }
     }, 1000); // Check every second
     
+    setIntervalId(newIntervalId);
+    
+    // Cleanup function
     return () => {
-      clearInterval(intervalId);
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
     };
-  }, [schedule.enabled, schedule.interval, schedule.duration, 
-      schedule.autoHide, lastActivation, preview, scheduleActive]);
+  }, [schedule.enabled, schedule.interval, schedule.duration, schedule.autoHide, preview]);
   
   // Handle video end for non-looping videos in scheduled mode
   const handleVideoEnded = () => {
+    console.log("VideoOverlay: Video ended", {
+      loop,
+      scheduleAutoHide: schedule.autoHide,
+      preview,
+      scheduleEnabled: schedule.enabled
+    });
+    
     if (!loop && schedule.autoHide && !preview && schedule.enabled) {
-      console.log("Video ended, hiding overlay");
+      console.log("VideoOverlay: Video ended, hiding overlay");
       setIsVisible(false);
       setScheduleActive(false);
     }
@@ -144,11 +169,14 @@ export function VideoOverlay({
   const handlePlay = () => {
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
-      videoRef.current.play();
+      videoRef.current.play().catch(err => {
+        console.error("Error playing video in preview:", err);
+      });
       setIsVisible(true);
     }
   };
   
+  // Don't render anything if not visible and not in preview mode
   if (!isVisible && !preview) {
     return null;
   }
@@ -204,6 +232,11 @@ export function VideoOverlay({
           >
             {isVisible ? '👁️' : '👁️‍🗨️'}
           </button>
+          {schedule.enabled && (
+            <div className="p-1 bg-black/80 text-white rounded text-xs">
+              {schedule.interval}s/{schedule.duration}s
+            </div>
+          )}
         </div>
       )}
     </div>

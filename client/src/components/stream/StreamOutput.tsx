@@ -140,14 +140,18 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
                         parseFloat(layer.style.opacity as unknown as string) : 1
                     }}
                     source={layer.content.source}
-                    loop={layer.content.scheduleLoop !== false} // default to true if not specified
+                    loop={layer.content.scheduleEnabled ? 
+                      (layer.content.scheduleLoop === true) : 
+                      true} // If scheduling enabled, respect scheduleLoop; otherwise default to true
                     autoplay={true}
                     muted={true}
                     schedule={{
-                      enabled: layer.content.scheduleEnabled || false,
-                      interval: layer.content.scheduleInterval || 600, // 10 minutes default
-                      duration: layer.content.scheduleDuration || 5,   // 5 seconds default
-                      autoHide: layer.content.scheduleAutoHide !== false // default to true
+                      enabled: Boolean(layer.content.scheduleEnabled), // Ensure boolean type
+                      interval: parseInt(String(layer.content.scheduleInterval || "600"), 10), // Force number type
+                      duration: parseInt(String(layer.content.scheduleDuration || "5"), 10),   // Force number type
+                      autoHide: layer.content.scheduleEnabled ? 
+                        (layer.content.scheduleAutoHide !== false) : 
+                        true // default to true
                     }}
                   />
                 ) : /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(layer.content.source) ? (
