@@ -4,6 +4,7 @@ import { SpotifyWidget } from "../stream/SpotifyWidget";
 import { QuoteOverlay } from "../stream/QuoteOverlay";
 import { TimerOverlay } from "../stream/TimerOverlay";
 import { VideoOverlay } from "../stream/VideoOverlay";
+import { TestLayerCreator } from "../ui/test-layer-creator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -299,6 +300,9 @@ export function PreviewPanel() {
             <i className="ri-fullscreen-line mr-1"></i>
             Full Preview
           </button>
+          
+          {/* Add Test Layer Creator for debugging position sync */}
+          <TestLayerCreator />
         </div>
       </div>
       

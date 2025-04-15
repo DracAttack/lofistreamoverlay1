@@ -326,15 +326,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid data format. Expected layers array." });
       }
       
+      // Get existing layers if available
+      const existingLayers = await storage.getLayers();
+      
       // Deduplicate layers by ID to prevent duplicate broadcasting
       const layerMap = new Map();
-      layers.forEach(layer => {
+      
+      // First add existing layers to the map
+      existingLayers.forEach(layer => {
         layerMap.set(layer.id, layer);
       });
+      
+      // Then add/override with the incoming layers
+      layers.forEach(layer => {
+        // Make sure all required layer fields are present
+        if (layer && layer.id) {
+          layerMap.set(layer.id, {
+            ...layerMap.get(layer.id), // Get existing layer data as base
+            ...layer, // Override with new data
+          });
+        }
+      });
+      
+      // Convert map back to array
       layers = Array.from(layerMap.values());
       
+      // Update active layout in storage
       const activeLayout = await storage.updateActiveLayout(layers);
+      
+      // Log success for debugging
+      console.log(`Active layout synchronized with ${layers.length} layers`);
+      
+      // Broadcast update to all connected clients
       broadcastUpdate("active_layout_updated", layers);
+      
       res.json(activeLayout);
     } catch (error) {
       console.error("Error syncing active layout:", error);
