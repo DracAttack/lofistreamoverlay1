@@ -323,30 +323,21 @@ export function PreviewPanel() {
                 ) : layer.content.source ? (
                   <>
                     {/\.(mp4|webm|ogg|mov)$/i.test(layer.content.source) ? (
-                      // Video content
-                      <div style={{
-                        width: '100%', 
-                        height: '100%', 
-                        position: 'relative',
-                        overflow: 'hidden',
-                        borderRadius: layer.style.borderRadius || '0',
-                      }}>
-                        <video 
-                          src={layer.content.source}
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: isBackground ? 'cover' : 'contain',
-                            backgroundColor: /\.webm$/i.test(layer.content.source) ? 'transparent' : (layer.style.backgroundColor || 'transparent'),
-                            borderRadius: layer.style.borderRadius || '0',
-                            mixBlendMode: /\.webm$/i.test(layer.content.source) ? 'normal' : undefined,
-                          }}
-                          autoPlay
-                          loop
-                          muted
-                          playsInline
-                        />
-                      </div>
+                      // Video content with scheduling support
+                      <VideoOverlay
+                        style={layer.style}
+                        source={layer.content.source}
+                        loop={layer.content.scheduleLoop !== false} // default to true
+                        autoplay={true}
+                        muted={true}
+                        preview={true}
+                        schedule={{
+                          enabled: layer.content.scheduleEnabled || false,
+                          interval: layer.content.scheduleInterval || 600,
+                          duration: layer.content.scheduleDuration || 5,
+                          autoHide: layer.content.scheduleAutoHide !== false // default to true
+                        }}
+                      />
                     ) : /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(layer.content.source) ? (
                       // Image content
                       <div

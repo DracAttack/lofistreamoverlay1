@@ -4,6 +4,7 @@ import { Layer, Quote, SpotifyNowPlaying } from "@/lib/types";
 import { QuoteOverlay } from "./QuoteOverlay";
 import { SpotifyWidget } from "./SpotifyWidget";
 import { VideoOverlay } from "./VideoOverlay";
+import { TimerOverlay } from "./TimerOverlay";
 
 export function StreamOutput() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -78,11 +79,23 @@ export function StreamOutput() {
             className={isBackground ? "absolute inset-0" : "absolute"}
             style={isBackground ? { zIndex: layer.zIndex } : position}
           >
-            {/* Handle different types of content based on source path */}
-            {layer.content?.source ? (
+            {/* Handle different types of content based on content */}
+            {layer.content.timerEnabled ? (
+              // Timer overlay
+              <TimerOverlay
+                style={layer.style}
+                timerConfig={{
+                  duration: layer.content.timerDuration || 300,
+                  direction: layer.content.timerDirection || 'down',
+                  startTime: layer.content.timerStartTime,
+                  format: layer.content.timerFormat || 'mm:ss'
+                }}
+                preview={false}
+              />
+            ) : layer.content?.source ? (
               <>
                 {/\.(mp4|webm|ogg|mov)$/i.test(layer.content.source) ? (
-                  // Video content
+                  // Video content with scheduling support
                   <VideoOverlay
                     style={{
                       backgroundColor: layer.style.backgroundColor,
@@ -93,9 +106,15 @@ export function StreamOutput() {
                         parseFloat(layer.style.opacity as unknown as string) : 1
                     }}
                     source={layer.content.source}
-                    loop={true}
+                    loop={layer.content.scheduleLoop !== false} // default to true if not specified
                     autoplay={true}
                     muted={true}
+                    schedule={{
+                      enabled: layer.content.scheduleEnabled || false,
+                      interval: layer.content.scheduleInterval || 600, // 10 minutes default
+                      duration: layer.content.scheduleDuration || 5,   // 5 seconds default
+                      autoHide: layer.content.scheduleAutoHide !== false // default to true
+                    }}
                   />
                 ) : /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(layer.content.source) ? (
                   // Image content
