@@ -16,11 +16,15 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
   const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
   const [bgVideo, setBgVideo] = useState("");
 
-  // Fetch layers
-  const { data: layers = [] } = useQuery<Layer[]>({
-    queryKey: ['/api/layers'],
-    refetchInterval: 5000 // Check for layer updates every 5 seconds
+  // Fetch active layout instead of layers directly
+  // This ensures we get the same layer data that the PreviewPanel is working with
+  const { data: activeLayoutData } = useQuery<{ layers: Layer[] }>({
+    queryKey: ['/api/active-layout'],
+    refetchInterval: 1000 // Check more frequently for real-time updates
   });
+  
+  // Extract layers from the active layout
+  const layers = activeLayoutData?.layers || [];
 
   // Fetch quotes
   const { data: quotesData = [] } = useQuery<Quote[]>({

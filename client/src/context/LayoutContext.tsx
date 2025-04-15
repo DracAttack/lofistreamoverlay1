@@ -134,12 +134,43 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
         return;
       }
 
-      // Update the layer locally first
+      // Calculate percentage values when absolute pixel values are given
+      // This ensures consistency between different viewport sizes
+      let positionWithPercentages = { ...position };
+      
+      // Get the container element for calculating percentages
+      const container = document.querySelector('.preview-container') as HTMLElement;
+      if (container && position) {
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+        
+        // Calculate xPercent if x is provided
+        if (position.x !== undefined && containerWidth > 0) {
+          positionWithPercentages.xPercent = (position.x / containerWidth) * 100;
+        }
+        
+        // Calculate yPercent if y is provided
+        if (position.y !== undefined && containerHeight > 0) {
+          positionWithPercentages.yPercent = (position.y / containerHeight) * 100;
+        }
+        
+        // Calculate widthPercent if width is provided and not 'auto'
+        if (position.width !== undefined && position.width !== 'auto' && containerWidth > 0) {
+          positionWithPercentages.widthPercent = (Number(position.width) / containerWidth) * 100;
+        }
+        
+        // Calculate heightPercent if height is provided and not 'auto'
+        if (position.height !== undefined && position.height !== 'auto' && containerHeight > 0) {
+          positionWithPercentages.heightPercent = (Number(position.height) / containerHeight) * 100;
+        }
+      }
+
+      // Update the layer locally first with both absolute and percentage values
       const updatedLayer = {
         ...layerToUpdate,
         position: {
           ...layerToUpdate.position,
-          ...position
+          ...positionWithPercentages
         }
       };
 
@@ -148,7 +179,9 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
         prevLayers.map(layer => layer.id === layerId ? updatedLayer : layer)
       );
 
-      // SIMPLIFIED: Only use active layout sync to avoid race conditions
+      console.log(`Updating layer position with percentages:`, positionWithPercentages);
+      
+      // Use active layout sync to avoid race conditions
       // This keeps positions in sync across all views through a single source of truth
       try {
         // Get fresh copy of layers with the updated layer
@@ -156,10 +189,20 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
           layer.id === layerId ? updatedLayer : layer
         );
         
-        // Single API call to update all layers
-        await apiRequest('POST', '/api/active-layout/sync', {
-          layers: currentLayers
+        // Single API call to update all layers with the calculated percentages
+        await apiRequest('/api/active-layout/sync', {
+          method: 'POST',
+          body: {
+            layers: currentLayers
+          }
         });
+        
+        // If direct layer update is also needed to persist changes
+        await apiRequest(`/api/layers/${layerId}`, {
+          method: 'PUT',
+          body: updatedLayer
+        });
+        
       } catch (apiError) {
         console.error('API error while updating position:', apiError);
         // If the server update fails, revert the local change

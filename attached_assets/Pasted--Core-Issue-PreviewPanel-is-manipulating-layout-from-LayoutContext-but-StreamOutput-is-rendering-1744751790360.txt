@@ -1,0 +1,87 @@
+🧨 Core Issue: PreviewPanel is manipulating layout from LayoutContext
+…but
+StreamOutput is rendering layout from /api/layers directly.
+
+These are two completely separate data sources.
+
+🧠 Translation:
+When you drag or reposition a layer in the Preview UI, you're calling:
+
+ts
+Copy
+Edit
+setLayers(...)
+which only updates the in-memory state of LayoutContext.tsx
+(meaning: the preview reflects your changes locally, perfectly)
+
+But StreamOutput.tsx doesn't know — or care — about that local state.
+It does this:
+
+ts
+Copy
+Edit
+useQuery(['/api/layers'])
+…which hits the API and re-pulls the server-stored version, which hasn't changed — because your drag didn't save it.
+
+✅ Confirmed: That’s why nothing on the Stream Output page changes, ever.
+Even if you “drag,” “preview,” “save layout,” etc., unless that writes to the backend or database, StreamOutput is just rendering old data from scratch on every refresh or 5-second interval.
+
+🛠️ How to Fix This Properly
+✅ Option 1 (Best Long-Term):
+Update your drag/save logic inside PreviewPanel to POST/PATCH the updated layout to the server.
+
+You might already have a function like this in LayoutContext.tsx or queryClient.ts:
+
+ts
+Copy
+Edit
+await apiRequest(`/api/layers/${layer.id}`, {
+  method: "PATCH",
+  body: { position: { x, y, width, height } }
+});
+Make sure every time a layer is dragged or resized, it writes this data to the database. That way, StreamOutput (which relies on useQuery(['/api/layers'])) gets real-time updates.
+
+✅ Option 2 (Quick Hack):
+Pass the layers prop from LayoutContext directly into StreamOutput.
+This is not scalable, but would at least confirm the problem is what we think it is.
+
+Change StreamOutput.tsx:
+
+tsx
+Copy
+Edit
+export function StreamOutput({ layers }: { layers: Layer[] }) {
+  const visibleLayers = layers.filter(l => l.visible).sort((a, b) => a.zIndex - b.zIndex);
+  ...
+}
+Then render it with:
+
+tsx
+Copy
+Edit
+<StreamOutput layers={layers} />
+But again: this only works if both pages are open together and share the same React state. Not usable in OBS/browser-source.
+
+✅ Option 3 (Safe Middleware):
+Build a saveLayout() button that:
+
+Calls PATCH /api/layers/:id for every layer
+
+Triggers a backend-side broadcast('layout-updated') WebSocket message
+
+Calls queryClient.invalidateQueries(['/api/layers']) on the StreamOutput end
+
+Then your config page becomes the truth source — and StreamOutput reflects it via real persisted sync, not memory-state magic.
+
+✅ Visual Recap
+
+Source	Pulls Layer Data From	Live
+PreviewPanel	LayoutContext (memory)	Yes
+StreamOutput	/api/layers (server)	No — unless patched
+Drag works in preview	✅	
+StreamOutput shows updates	❌	Needs backend sync
+✅ TL;DR
+Yes — the problem is it’s not editing the file StreamOutput is reading from. You hit the nail on the head.
+
+The preview UI is showing an illusion of interactivity, but it's all in local memory — not actually saving or syncing. That’s why nothing is reflected in your stream output.
+
