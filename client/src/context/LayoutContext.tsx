@@ -134,35 +134,61 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
         return;
       }
 
-      // Calculate percentage values when absolute pixel values are given
+      // BASE RESOLUTION CONSTANTS for normalized coordinate system
+      const BASE_WIDTH = 1920;
+      const BASE_HEIGHT = 1080;
+      
+      // Calculate percentage values based on standard 1920x1080 resolution
       // This ensures consistency between different viewport sizes
       let positionWithPercentages = { ...position };
       
       // Get the container element for calculating percentages
       const container = document.querySelector('.preview-container') as HTMLElement;
       if (container && position) {
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
+        const rect = container.getBoundingClientRect();
+        const containerWidth = rect.width;
+        const containerHeight = rect.height;
         
-        // Calculate xPercent if x is provided
+        // Calculate normalized percentage values based on the container dimensions
+        // This makes positions relative to a standard 1920x1080 grid
+        
+        // Calculate xPercent if x is provided (as % of normalized 1920x1080 space)
         if (position.x !== undefined && containerWidth > 0) {
-          positionWithPercentages.xPercent = (position.x / containerWidth) * 100;
+          const normalizedX = (position.x / containerWidth) * 100;
+          positionWithPercentages.xPercent = normalizedX;
+          // We now store both the percentage and the absolute pixel value at 1920x1080 resolution
+          positionWithPercentages.x = (normalizedX / 100) * BASE_WIDTH;
         }
         
-        // Calculate yPercent if y is provided
+        // Calculate yPercent if y is provided (as % of normalized 1920x1080 space)
         if (position.y !== undefined && containerHeight > 0) {
-          positionWithPercentages.yPercent = (position.y / containerHeight) * 100;
+          const normalizedY = (position.y / containerHeight) * 100;
+          positionWithPercentages.yPercent = normalizedY;
+          // We now store both the percentage and the absolute pixel value at 1920x1080 resolution
+          positionWithPercentages.y = (normalizedY / 100) * BASE_HEIGHT;
         }
         
         // Calculate widthPercent if width is provided and not 'auto'
         if (position.width !== undefined && position.width !== 'auto' && containerWidth > 0) {
-          positionWithPercentages.widthPercent = (Number(position.width) / containerWidth) * 100;
+          const normalizedWidth = (Number(position.width) / containerWidth) * 100;
+          positionWithPercentages.widthPercent = normalizedWidth;
+          // Store both percentage and the absolute pixel value at 1920x1080 resolution
+          positionWithPercentages.width = (normalizedWidth / 100) * BASE_WIDTH;
         }
         
         // Calculate heightPercent if height is provided and not 'auto'
         if (position.height !== undefined && position.height !== 'auto' && containerHeight > 0) {
-          positionWithPercentages.heightPercent = (Number(position.height) / containerHeight) * 100;
+          const normalizedHeight = (Number(position.height) / containerHeight) * 100;
+          positionWithPercentages.heightPercent = normalizedHeight;
+          // Store both percentage and the absolute pixel value at 1920x1080 resolution
+          positionWithPercentages.height = (normalizedHeight / 100) * BASE_HEIGHT;
         }
+        
+        console.log('Normalized position values:', {
+          original: position,
+          normalized: positionWithPercentages,
+          containerDimensions: { width: containerWidth, height: containerHeight }
+        });
       }
 
       // Update the layer locally first with both absolute and percentage values

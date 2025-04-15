@@ -192,8 +192,9 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
     >
       {/* Render all layers in z-index order */}
       {visibleLayers.map(layer => {
-        // Convert percentages to absolute pixel values for 1920x1080 canvas
-        // This ensures correct positioning regardless of the preview panel scale
+        // IMPORTANT: For Stream Output, we ALWAYS use percentage values
+        // converted to absolute pixels at 1920x1080 resolution
+        
         // Check if this layer should be in fullscreen mode
         const isFullscreen = layer.content?.isFullscreen === true;
         
@@ -208,9 +209,11 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
           });
         }
         
+        // Always use a consistent coordinate system based on percentages
+        // This ensures alignment between preview panel and stream output
         const position = {
           // If fullscreen, position at 0,0 and fill entire canvas
-          // Otherwise, calculate based on stored coordinates
+          // Otherwise, calculate based on stored percentage coordinates
           left: isFullscreen ? '0px' : (
             layer.position.xPercent !== undefined 
               ? `${(layer.position.xPercent / 100) * BASE_WIDTH}px`  // Convert percentage to absolute pixels
@@ -234,7 +237,8 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
                   ? `${(layer.position.heightPercent / 100) * BASE_HEIGHT}px` // Convert percentage to absolute pixels
                   : `${layer.position.height}px`)
           ),
-          zIndex: layer.zIndex
+          zIndex: layer.zIndex,
+          position: 'absolute' // Ensure absolute positioning for all layers
         };
         
         // All layers should be positioned normally (no special case for background)

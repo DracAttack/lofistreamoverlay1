@@ -147,12 +147,24 @@ export function PreviewPanel() {
     }
     
     // Calculate percentage positions for cross-view compatibility
+    // These are normalized to the PreviewPanel dimensions
     const xPercent = (newX / rect.width) * 100;
     const yPercent = (newY / rect.height) * 100;
     const widthPercent = (newWidth / rect.width) * 100;
     const heightPercent = (newHeight / rect.height) * 100;
     
+    // Add debug logging for Layer 1 (Loop/Background)
+    if (layer.id === 1) {
+      console.log('Resizing Layer 1 (Loop):', {
+        pixels: { x: newX, y: newY, width: newWidth, height: newHeight },
+        percentages: { xPercent, yPercent, widthPercent, heightPercent },
+        container: { width: rect.width, height: rect.height },
+        direction: resizeDirection
+      });
+    }
+    
     // Create new position object with updates - including percentages
+    // This ensures both StreamOutput and PreviewPanel can position elements correctly
     const newPosition = {
       x: newX,
       y: newY,
