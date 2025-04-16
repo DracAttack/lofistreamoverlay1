@@ -92,6 +92,7 @@ export function LayerEditor() {
       setScheduleDuration(selectedLayer.content?.scheduleDuration || 5);
       setScheduleAutoHide(selectedLayer.content?.scheduleAutoHide !== false); // default to true
       setScheduleLoop(selectedLayer.content?.scheduleLoop !== false); // default to true
+      setLoopFreely(selectedLayer.content?.loopFreely === true); // default to false
       
       // Debug log
       console.log("LayerEditor - Loading schedule settings:", {
@@ -183,7 +184,8 @@ export function LayerEditor() {
           scheduleInterval,
           scheduleDuration,
           scheduleAutoHide,
-          scheduleLoop
+          scheduleLoop,
+          loopFreely
         },
         zIndex
       };
@@ -457,6 +459,25 @@ export function LayerEditor() {
             <p>Layer will cover the entire screen (1920x1080) at coordinates (0,0).</p>
           </div>
         )}
+        
+        {/* Loop Freely Option */}
+        <div className="flex items-center justify-between mt-3">
+          <div className="flex items-center space-x-2">
+            <input 
+              type="checkbox" 
+              checked={loopFreely} 
+              onChange={(e) => setLoopFreely(e.target.checked)}
+              className="h-4 w-4 rounded border-secondary"
+            />
+            <label className="text-xs text-foreground/70">Loop Freely (play continuously)</label>
+          </div>
+        </div>
+        
+        {loopFreely && (
+          <div className="bg-background/50 rounded p-2 mt-2 text-xs text-foreground/70">
+            <p>Video will play continuously in a loop, ignoring any schedule settings.</p>
+          </div>
+        )}
       </div>
       
       {/* Scheduling Options */}
@@ -469,12 +490,20 @@ export function LayerEditor() {
               type="checkbox" 
               checked={scheduleEnabled} 
               onChange={(e) => setScheduleEnabled(e.target.checked)}
+              disabled={loopFreely}
               className="h-4 w-4 rounded border-secondary"
             />
           </div>
         </div>
         
-        {scheduleEnabled && (
+        {loopFreely && (
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-2 mb-3 text-xs text-foreground/70">
+            <p className="font-semibold">Loop Freely enabled</p>
+            <p>Scheduling is bypassed when Loop Freely is enabled. The video will play continuously in a loop.</p>
+          </div>
+        )}
+        
+        {scheduleEnabled && !loopFreely && (
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-foreground/70 mb-1">Show every (seconds)</label>
