@@ -7,6 +7,39 @@ import { VideoOverlay } from "../stream/VideoOverlay";
 import { TestLayerCreator } from "../ui/test-layer-creator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Button } from "@/components/ui/button";
+import { RotateCcw } from "lucide-react";
+
+// Utility functions for snapping to grid and center
+function snapToGrid(value: number, step = 5): number {
+  return Math.round(value / step) * step;
+}
+
+function snapToCenter(value: number, containerSize: number, threshold = 3): number {
+  const center = containerSize / 2;
+  const centerPercent = 50;
+  
+  // If within threshold of center, snap to center
+  if (Math.abs(value - centerPercent) < threshold) {
+    return centerPercent;
+  }
+  return value;
+}
+
+// History tracking for undo functionality
+interface LayerHistoryEntry {
+  layerId: number;
+  position: {
+    x: number;
+    y: number;
+    width: number | 'auto';
+    height: number | 'auto';
+    xPercent?: number;
+    yPercent?: number;
+    widthPercent?: number;
+    heightPercent?: number;
+  };
+}
 
 export function PreviewPanel() {
   const { layers, selectedLayer, setLayers, updateLayerPosition } = useLayoutContext();
@@ -16,7 +49,18 @@ export function PreviewPanel() {
   const [resizeDirection, setResizeDirection] = useState<string | null>(null);
   const [dragTarget, setDragTarget] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [resizeStart, setResizeStart] = useState({ 
+    width: 0, 
+    height: 0, 
+    x: 0, 
+    y: 0,
+    widthPercent: 0,
+    heightPercent: 0,
+    xPercent: 0,
+    yPercent: 0
+  });
   const previewRef = useRef<HTMLDivElement>(null);
+  const layerHistoryRef = useRef<LayerHistoryEntry[]>([]);
   const { toast } = useToast();
 
   const handleFullPreview = () => {
@@ -109,6 +153,30 @@ export function PreviewPanel() {
     
     const layer = layers.find(l => l.id === layerId);
     if (!layer) return;
+    
+    // Save the layer's starting position and dimensions for history
+    const originalPosition = { ...layer.position };
+    layerHistoryRef.current.push({
+      layerId,
+      position: originalPosition
+    });
+    
+    // Keep only the last 20 history entries
+    if (layerHistoryRef.current.length > 20) {
+      layerHistoryRef.current = layerHistoryRef.current.slice(-20);
+    }
+    
+    // Save starting dimensions for stable resize calculations
+    setResizeStart({
+      width: typeof layer.position.width === 'number' ? layer.position.width : 200,
+      height: typeof layer.position.height === 'number' ? layer.position.height : 150,
+      x: layer.position.x,
+      y: layer.position.y,
+      widthPercent: layer.position.widthPercent || 0,
+      heightPercent: layer.position.heightPercent || 0,
+      xPercent: layer.position.xPercent || 0,
+      yPercent: layer.position.yPercent || 0
+    });
     
     setIsResizing(true);
     setResizeDirection(direction);
@@ -216,13 +284,172 @@ export function PreviewPanel() {
     }
   };
 
+  // Reset layer to default position and size
+  const resetLayer = async (layerId: number) => {
+    // Find the layer to reset
+    const layer = layers.find(l => l.id === layerId);
+    if (!layer || !previewRef.current) return;
+    
+    // Store the original position for undo history
+    layerHistoryRef.current.push({
+      layerId,
+      position: { ...layer.position }
+    });
+    
+    // Get container dimensions
+    const rect = previewRef.current.getBoundingClientRect();
+    
+    // Default position: centered, 30% width, 30% height
+    const defaultPosition = {
+      x: rect.width / 2 - (rect.width * 0.15),
+      y: rect.height / 2 - (rect.height * 0.15),
+      width: rect.width * 0.3,
+      height: rect.height * 0.3,
+      xPercent: 35,
+      yPercent: 35,
+      widthPercent: 30,
+      heightPercent: 30
+    };
+    
+    // Update layers with reset position
+    const updatedLayers = layers.map(l => {
+      if (l.id === layerId) {
+        return {
+          ...l,
+          position: {
+            ...l.position,
+            ...defaultPosition
+          }
+        };
+      }
+      return l;
+    });
+    
+    // Update UI
+    setLayers(updatedLayers);
+    
+    try {
+      // Update server
+      await updateLayerPosition(layerId, defaultPosition);
+      
+      toast({
+        title: "Layer Reset",
+        description: `Layer position and size have been reset to default`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to reset layer position",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Undo last position change
+  const undoLastChange = () => {
+    if (layerHistoryRef.current.length === 0) {
+      toast({
+        title: "Nothing to Undo",
+        description: "No recent position changes found",
+      });
+      return;
+    }
+    
+    // Get the last history entry
+    const lastEntry = layerHistoryRef.current.pop();
+    if (!lastEntry) return;
+    
+    // Update the layer with the previous position
+    const updatedLayers = layers.map(l => {
+      if (l.id === lastEntry.layerId) {
+        return {
+          ...l,
+          position: lastEntry.position
+        };
+      }
+      return l;
+    });
+    
+    // Update UI
+    setLayers(updatedLayers);
+    
+    // Update server
+    updateLayerPosition(lastEntry.layerId, lastEntry.position)
+      .then(() => {
+        toast({
+          title: "Change Undone",
+          description: `Reverted to previous position`,
+        });
+      })
+      .catch(error => {
+        toast({
+          title: "Error",
+          description: "Failed to undo changes",
+          variant: "destructive"
+        });
+      });
+  };
+
   const endResize = async () => {
     if (isResizing && dragTarget !== null) {
       const layer = layers.find(l => l.id === dragTarget);
-      if (layer) {
+      if (layer && previewRef.current) {
         try {
-          // Use the context function to update position on server and broadcast to clients
-          await updateLayerPosition(dragTarget, layer.position);
+          const rect = previewRef.current.getBoundingClientRect();
+          
+          // Apply snapping and constraints to percentages
+          let { xPercent, yPercent, widthPercent, heightPercent } = layer.position;
+          
+          // Snap percentages to grid (increments of 5%)
+          if (xPercent !== undefined) xPercent = snapToGrid(xPercent);
+          if (yPercent !== undefined) yPercent = snapToGrid(yPercent);
+          if (widthPercent !== undefined) widthPercent = snapToGrid(widthPercent);
+          if (heightPercent !== undefined) heightPercent = snapToGrid(heightPercent);
+          
+          // Snap to center if close
+          if (xPercent !== undefined) xPercent = snapToCenter(xPercent, 100);
+          if (yPercent !== undefined) yPercent = snapToCenter(yPercent, 100);
+          
+          // Apply constraints on size (minimum 5%, maximum 100%)
+          if (widthPercent !== undefined) widthPercent = Math.max(5, Math.min(100, widthPercent));
+          if (heightPercent !== undefined) heightPercent = Math.max(5, Math.min(100, heightPercent));
+          
+          // Convert percentages back to pixels for consistency
+          const x = (xPercent !== undefined) ? (xPercent / 100) * rect.width : layer.position.x;
+          const y = (yPercent !== undefined) ? (yPercent / 100) * rect.height : layer.position.y;
+          const width = (widthPercent !== undefined) ? (widthPercent / 100) * rect.width : layer.position.width;
+          const height = (heightPercent !== undefined) ? (heightPercent / 100) * rect.height : layer.position.height;
+          
+          // Create snapped position
+          const snappedPosition = {
+            x,
+            y,
+            width,
+            height,
+            xPercent,
+            yPercent,
+            widthPercent,
+            heightPercent
+          };
+          
+          // Update UI with snapped values
+          const updatedLayers = layers.map(l => {
+            if (l.id === dragTarget) {
+              return {
+                ...l,
+                position: {
+                  ...l.position,
+                  ...snappedPosition
+                }
+              };
+            }
+            return l;
+          });
+          
+          setLayers(updatedLayers);
+          
+          // Use the context function to update position on server with snapped values
+          await updateLayerPosition(dragTarget, snappedPosition);
         } catch (error) {
           toast({
             title: "Error",
@@ -241,10 +468,49 @@ export function PreviewPanel() {
   const endDrag = async () => {
     if (isDragging && dragTarget !== null) {
       const layer = layers.find(l => l.id === dragTarget);
-      if (layer) {
+      if (layer && previewRef.current) {
         try {
-          // Use the context function to update position on server and broadcast to clients
-          await updateLayerPosition(dragTarget, layer.position);
+          const rect = previewRef.current.getBoundingClientRect();
+          
+          // Apply snapping to grid
+          let { xPercent, yPercent } = layer.position;
+          
+          // Snap percentages to grid (increments of 5%)
+          if (xPercent !== undefined) xPercent = snapToGrid(xPercent);
+          if (yPercent !== undefined) yPercent = snapToGrid(yPercent);
+          
+          // Snap to center if close
+          if (xPercent !== undefined) xPercent = snapToCenter(xPercent, 100);
+          if (yPercent !== undefined) yPercent = snapToCenter(yPercent, 100);
+          
+          // Convert percentages back to pixels for consistency
+          const x = (xPercent !== undefined) ? (xPercent / 100) * rect.width : layer.position.x;
+          const y = (yPercent !== undefined) ? (yPercent / 100) * rect.height : layer.position.y;
+          
+          // Create snapped position
+          const snappedPosition = {
+            ...layer.position,
+            x,
+            y,
+            xPercent,
+            yPercent
+          };
+          
+          // Update UI with snapped values
+          const updatedLayers = layers.map(l => {
+            if (l.id === dragTarget) {
+              return {
+                ...l,
+                position: snappedPosition
+              };
+            }
+            return l;
+          });
+          
+          setLayers(updatedLayers);
+          
+          // Use the context function to update position on server with snapped values
+          await updateLayerPosition(dragTarget, snappedPosition);
         } catch (error) {
           toast({
             title: "Error",

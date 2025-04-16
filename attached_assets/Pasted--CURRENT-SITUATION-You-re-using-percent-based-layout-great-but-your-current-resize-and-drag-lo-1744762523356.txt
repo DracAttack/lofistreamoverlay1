@@ -1,0 +1,87 @@
+🧠 CURRENT SITUATION:
+You're using percent-based layout (great), but your current resize and drag logic in PreviewPanel.tsx:
+
+Lacks snapping to grid or center
+
+Has no constraints for min/max size
+
+Doesn’t normalize on mouse-up, so tiny jitter or overcorrection causes chaos
+
+Is not debounce-throttled well during resizes
+
+Has no undo/reset layer history tracking
+
+✅ PROPOSED ENHANCEMENTS (All Easy to Patch):
+🔧 1. Snap to Grid / Center
+On drag or resize release, snap positions and sizes to:
+
+10% increments
+
+Or center-align if within ~3% of midpoint
+
+ts
+Copy
+Edit
+function snapToGrid(value: number, step = 5): number {
+  return Math.round(value / step) * step;
+}
+
+function snapToCenter(value: number, containerSize: number, threshold = 3): number {
+  const center = containerSize / 2;
+  return Math.abs(value - center) < threshold ? center : value;
+}
+Call this when onMouseUp from drag/resize completes.
+
+🔧 2. Add Reset Button (per layer)
+Add a button to set selected layer’s position and size back to default:
+
+ts
+Copy
+Edit
+const resetLayer = (layerId: number) => {
+  const updatedLayers = layers.map(layer =>
+    layer.id === layerId
+      ? { ...layer, position: { x: 0, y: 0, width: 100, height: 100 } }
+      : layer
+  );
+  setLayers(updatedLayers);
+};
+Bind it to a “↺ Reset” button inside your layer editor.
+
+🔧 3. Add Undo (with layerStateStack[])
+Create a useRef([]) to store history of changes. Every time a layer is changed, push to history stack. On undo, pop the last entry.
+
+🔧 4. Add Resize Constraints
+Clamp your width and height inside handleResize() to something like:
+
+ts
+Copy
+Edit
+width: Math.max(5, Math.min(100, newWidthPercent)),
+height: Math.max(5, Math.min(100, newHeightPercent)),
+Prevents blowing up a layer or shrinking to invisibility.
+
+🔧 5. Stabilize Resize Start/Delta
+You likely don’t cache the original size/position before resizing. Add:
+
+ts
+Copy
+Edit
+const [resizeStart, setResizeStart] = useState({ width: 0, height: 0, x: 0, y: 0 });
+Then on startResize:
+
+ts
+Copy
+Edit
+setResizeStart({ width: layer.position.width, height: layer.position.height, x: layer.position.x, y: layer.position.y });
+And use deltas relative to that to avoid jumps from cursor drift.
+
+✅ TL;DR
+
+Feature	Fix
+Jumpy resizing	Add start snapshot + delta math
+Massive undersize/oversize	Clamp min/max %
+Weird jitter	Throttle + add grid snap
+Centering tool	Snap-to-center when close to 50%
+No undo/reset	Add history stack + resetLayer()
+Bad resize feel	Cache on resize start, diff on move
