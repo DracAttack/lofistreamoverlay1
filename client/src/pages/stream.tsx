@@ -142,11 +142,43 @@ export default function Stream() {
   }, []);
 
   // Add a class to body element to ensure proper styling
+  // and apply critical CSS fixes for OBS browser source
   useEffect(() => {
+    // Add stream-page class
     document.body.classList.add('stream-page');
+    
+    // Apply critical CSS fixes for OBS browser source
+    const style = document.createElement('style');
+    style.innerHTML = `
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        background: black !important;
+        width: 100% !important;
+        height: 100% !important;
+      }
+      
+      .stream-container {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+        height: 100% !important;
+        overflow: hidden !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      
+      .stream-canvas {
+        transform-origin: center !important;
+      }
+    `;
+    document.head.appendChild(style);
     
     return () => {
       document.body.classList.remove('stream-page');
+      document.head.removeChild(style);
     };
   }, []);
   
@@ -160,7 +192,17 @@ export default function Stream() {
   console.log("STREAM PAGE RENDER - layers:", layers); 
 
   return (
-    <div className="stream-container w-full h-screen flex items-center justify-center bg-black overflow-hidden">
+    <div className="stream-container" style={{
+      background: "black",
+      margin: "0 auto",
+      padding: "0",
+      overflow: "hidden",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "100%",
+      height: "100vh"
+    }}>
       {!isConnected && !isLoading && (
         <div className="fixed top-0 left-0 right-0 bg-red-500 text-white text-center p-2 z-50">
           WebSocket disconnected. Layouts may not update in real-time.
@@ -174,7 +216,7 @@ export default function Stream() {
         </div>
       )}
       
-      {/* The StreamOutput component now uses the LayoutContext directly */}
+      {/* The StreamOutput component with fixed 1920x1080 dimensions */}
       <StreamOutput aspectRatio={getAspectRatio()} />
     </div>
   );

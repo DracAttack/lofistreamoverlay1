@@ -1,0 +1,82 @@
+🧨 THE PROBLEM:
+Your Stream Output page is scaling to the browser window and centering the container, instead of stretching to fill edge-to-edge.
+That’s why it:
+
+Looks perfect in Preview (which is sandboxed in 16:9)
+
+Looks cropped or letterboxed in Stream view
+
+Loses margins or slices edges (like that neon arrow on the right) — because you’re probably positioning based on exact 1920x1080 logic but not enforcing that canvas in Stream
+
+✅ THE FIX: Force your Stream Output container to behave like OBS expects
+🧱 Step 1: Apply a locked 1920x1080 canvas
+Wrap your entire StreamOutput renderer in a full-screen, fixed-aspect container:
+
+tsx
+Copy
+Edit
+<div
+  className="stream-canvas"
+  style={{
+    position: "relative",
+    width: "1920px",
+    height: "1080px",
+    overflow: "hidden",
+    backgroundColor: "black",
+    margin: "0 auto",
+  }}
+>
+  {/* all your layers go here */}
+</div>
+That way, OBS captures exactly what you see.
+
+🧱 Step 2: Prevent browser shrink/stretch
+In your /stream page or component, ensure this is set at the highest level:
+
+css
+Copy
+Edit
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: black;
+}
+This prevents the browser from trying to “help” by adding spacing or scrollbars.
+
+🧱 Step 3: Avoid % scaling in StreamOutput (if using absolute drag)
+Since you're positioning layers based on pixel dimensions in Preview, you must match that exact scale in Stream view. That means:
+
+Don’t use width: 100% or aspect-ratio: auto
+
+Lock everything into px values, or move to % scaling on both sides (but that’s a whole rewrite)
+
+✅ Optional Step: Fullscreen scaling for OBS browser source
+If you do want to allow OBS to scale the 1920x1080 canvas to 4K or other resolutions:
+
+css
+Copy
+Edit
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  margin: 0;
+}
+
+.stream-canvas {
+  width: 100vw;
+  height: 56.25vw; /* 1080p in 16:9 ratio */
+  max-height: 100vh;
+  position: relative;
+  margin: 0 auto;
+}
+That way it stays centered, responsive, and scales cleanly.
+
+✅ TL;DR: Final Fix Summary
+
+Issue	Fix
+Stream output is clipped	Force canvas to 1920x1080 px
+Layout doesn't match preview	Match fixed px positioning with matching container dimensions
+OBS output crops edges	Remove scrollbars, margins, and enforce overflow: hidden
+Aspect ratio drift	Lock aspect-ratio: 16 / 9 on stream container
