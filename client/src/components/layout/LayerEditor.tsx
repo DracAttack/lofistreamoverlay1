@@ -6,6 +6,8 @@ import { queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { Quote } from "@/lib/types";
 import { AssetSelector } from "./AssetSelector";
+import { Button } from "@/components/ui/button";
+import { RotateCcw, Undo } from "lucide-react";
 
 export function LayerEditor() {
   const { selectedLayer, setLayers, layers } = useLayoutContext();
@@ -549,6 +551,49 @@ export function LayerEditor() {
         )}
       </div>
 
+      {/* Action Buttons - Reset and Undo */}
+      <div className="mt-4 border-t border-secondary/30 pt-4">
+        <div className="flex items-center justify-between mb-3">
+          <label className="font-semibold text-sm">Layer Tools</label>
+          <div className="flex items-center space-x-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                // Call the resetLayer function in PreviewPanel
+                const event = new CustomEvent('resetLayer', { 
+                  detail: { layerId: selectedLayer.id } 
+                });
+                window.dispatchEvent(event);
+                
+                toast({
+                  title: "Layer Reset",
+                  description: "Layer position has been reset to default",
+                });
+              }}
+              className="flex items-center space-x-1"
+            >
+              <RotateCcw className="h-4 w-4 mr-1" />
+              <span>Reset Position</span>
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                // Call the undoChange function in PreviewPanel
+                const event = new CustomEvent('undoLastChange');
+                window.dispatchEvent(event);
+              }}
+              className="flex items-center space-x-1"
+            >
+              <Undo className="h-4 w-4 mr-1" />
+              <span>Undo Last Move</span>
+            </Button>
+          </div>
+        </div>
+      </div>
+      
       {/* Save Button */}
       <div className="mt-6 flex justify-end">
         <button 

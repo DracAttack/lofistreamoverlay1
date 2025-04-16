@@ -548,6 +548,32 @@ export function PreviewPanel() {
       };
     }
   }, [isResizing, dragTarget, resizeDirection]);
+  
+  // Set up event listeners for layer tools (reset and undo)
+  useEffect(() => {
+    // Handler for the reset layer event
+    const handleResetLayerEvent = (e: CustomEvent) => {
+      const { layerId } = e.detail;
+      if (layerId) {
+        resetLayer(layerId);
+      }
+    };
+    
+    // Handler for undo event
+    const handleUndoEvent = () => {
+      undoLastChange();
+    };
+    
+    // Add event listeners
+    window.addEventListener('resetLayer', handleResetLayerEvent as any);
+    window.addEventListener('undoLastChange', handleUndoEvent);
+    
+    // Clean up on unmount
+    return () => {
+      window.removeEventListener('resetLayer', handleResetLayerEvent as any);
+      window.removeEventListener('undoLastChange', handleUndoEvent);
+    };
+  }, [layers, setLayers]);
 
   const handleSaveLayout = async () => {
     const name = prompt("Enter a name for this layout:");
