@@ -73,13 +73,44 @@ export function PreviewPanel() {
     const layer = layers.find(l => l.id === layerId);
     if (!layer) return;
     
+    // Save the layer's starting position for history
+    const originalPosition = { ...layer.position };
+    layerHistoryRef.current.push({
+      layerId,
+      position: originalPosition
+    });
+    
     const rect = previewRef.current.getBoundingClientRect();
+    
+    // Calculate offset from the mouse position to the top-left corner of the element
+    // This ensures smoother dragging without jumps
     const offsetX = e.clientX - rect.left - layer.position.x;
     const offsetY = e.clientY - rect.top - layer.position.y;
+    
+    console.log("Starting drag with position:", { 
+      x: layer.position.x, 
+      y: layer.position.y,
+      mouseAt: { x: e.clientX - rect.left, y: e.clientY - rect.top },
+      offset: { x: offsetX, y: offsetY }
+    });
     
     setIsDragging(true);
     setDragTarget(layerId);
     setDragOffset({ x: offsetX, y: offsetY });
+    
+    // Also update resize start values in case we switch to resize
+    setResizeStart({
+      width: typeof layer.position.width === 'number' ? layer.position.width : 
+             (layer.position.widthPercent ? (layer.position.widthPercent / 100) * rect.width : 200),
+      height: typeof layer.position.height === 'number' ? layer.position.height : 
+              (layer.position.heightPercent ? (layer.position.heightPercent / 100) * rect.height : 150),
+      x: layer.position.x,
+      y: layer.position.y,
+      widthPercent: layer.position.widthPercent || 0,
+      heightPercent: layer.position.heightPercent || 0,
+      xPercent: layer.position.xPercent || 0,
+      yPercent: layer.position.yPercent || 0
+    });
   };
 
   // Use a reference to track the last time we synced to avoid too many API calls
@@ -94,26 +125,34 @@ export function PreviewPanel() {
     
     const rect = previewRef.current.getBoundingClientRect();
     
-    // Get the layer's dimensions
-    const width = typeof layer.position.width === 'number' ? layer.position.width : 200;
-    const height = typeof layer.position.height === 'number' ? layer.position.height : 150;
+    // Get the layer's dimensions with fallbacks to ensure we always have valid values
+    // This is critical for preventing NaN and undefined values that cause issues
+    const width = typeof layer.position.width === 'number' ? layer.position.width : 
+                  (layer.position.widthPercent ? (layer.position.widthPercent / 100) * rect.width : 200);
+    
+    const height = typeof layer.position.height === 'number' ? layer.position.height : 
+                   (layer.position.heightPercent ? (layer.position.heightPercent / 100) * rect.height : 150);
     
     // Calculate how much of the layer should remain visible when dragged to the edge
     const minVisibleWidth = Math.min(width * 0.25, 50);
     const minVisibleHeight = Math.min(height * 0.25, 50);
     
-    // Use offset for smooth, accurate dragging (accounts for where user clicked in the element)
-    const newX = e.clientX - rect.left - dragOffset.x;
-    const newY = e.clientY - rect.top - dragOffset.y;
+    // Get mouse position within the container
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
     
-    // Apply boundaries to keep element partially visible on screen
-    // This prevents the element from being dragged completely off-screen
+    // Use offset for smooth, accurate dragging (accounts for where user clicked in the element)
+    const newX = mouseX - dragOffset.x;
+    const newY = mouseY - dragOffset.y;
+    
+    // Set hard limits on where elements can be dragged
     const minX = -width + minVisibleWidth;
     const minY = -height + minVisibleHeight;
     const maxX = rect.width - minVisibleWidth;
     const maxY = rect.height - minVisibleHeight;
     
-    // Apply constraints
+    // Enforce boundaries to prevent elements from being dragged entirely off-screen
+    // These hard limits are critical for maintaining usability
     const x = Math.max(minX, Math.min(maxX, newX));
     const y = Math.max(minY, Math.min(maxY, newY));
     
@@ -121,26 +160,26 @@ export function PreviewPanel() {
     const xPercent = (x / rect.width) * 100;
     const yPercent = (y / rect.height) * 100;
     
-    // Clean up logging to avoid console spam
-    if (Date.now() % 10 === 0) {  // Only log 10% of the time
+    // Log drag data periodically for debugging
+    if (Date.now() % 50 === 0) {
       console.log('Dragging Layer:', {
         id: layer.id,
-        name: layer.name,
-        pixels: { x, y },
-        dimensions: { width, height },
-        percentages: { xPercent, yPercent },
-        container: { width: rect.width, height: rect.height },
-        constraints: { minX, minY, maxX, maxY }
+        direction: 'drag',
+        mousePosition: { x: mouseX, y: mouseY },
+        dragOffset: dragOffset,
+        newPosition: { x, y },
+        percentages: { xPercent, yPercent }
       });
     }
     
     // Create constrained position update - keep original values for width/height
+    // Apply hard caps on percentages to prevent any possibility of errors
     const constrainedPosition = {
       ...layer.position,
       x,
       y,
-      xPercent,
-      yPercent
+      xPercent: Math.max(0, Math.min(95, xPercent)),
+      yPercent: Math.max(0, Math.min(95, yPercent))
     };
     
     // Update local UI immediately for responsive feel
@@ -190,13 +229,30 @@ export function PreviewPanel() {
     if (layerHistoryRef.current.length > 20) {
       layerHistoryRef.current = layerHistoryRef.current.slice(-20);
     }
+
+    // Get current dimensions before starting resize
+    // Ensure we use correct values if they're undefined
+    const width = typeof layer.position.width === 'number' ? layer.position.width : 
+                  (layer.position.widthPercent ? (layer.position.widthPercent / 100) * previewRef.current.offsetWidth : 200);
+    
+    const height = typeof layer.position.height === 'number' ? layer.position.height : 
+                   (layer.position.heightPercent ? (layer.position.heightPercent / 100) * previewRef.current.offsetHeight : 150);
+    
+    // Ensure we have valid x and y coordinates
+    const x = typeof layer.position.x === 'number' ? layer.position.x : 
+              (layer.position.xPercent ? (layer.position.xPercent / 100) * previewRef.current.offsetWidth : 0);
+    
+    const y = typeof layer.position.y === 'number' ? layer.position.y : 
+              (layer.position.yPercent ? (layer.position.yPercent / 100) * previewRef.current.offsetHeight : 0);
+    
+    console.log("Starting resize with dimensions:", { x, y, width, height });
     
     // Save starting dimensions for stable resize calculations
     setResizeStart({
-      width: typeof layer.position.width === 'number' ? layer.position.width : 200,
-      height: typeof layer.position.height === 'number' ? layer.position.height : 150,
-      x: layer.position.x,
-      y: layer.position.y,
+      width,
+      height,
+      x,
+      y,
       widthPercent: layer.position.widthPercent || 0,
       heightPercent: layer.position.heightPercent || 0,
       xPercent: layer.position.xPercent || 0,
@@ -207,11 +263,11 @@ export function PreviewPanel() {
     setResizeDirection(direction);
     setDragTarget(layerId);
 
-    // Set drag offset for calculations
+    // Set the mouse position at the start of resize
     const rect = previewRef.current.getBoundingClientRect();
-    const offsetX = e.clientX - rect.left;
-    const offsetY = e.clientY - rect.top;
-    setDragOffset({ x: offsetX, y: offsetY });
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    setDragOffset({ x: mouseX, y: mouseY });
   };
 
   const handleResize = (e: React.MouseEvent) => {
@@ -225,27 +281,28 @@ export function PreviewPanel() {
     const currentY = e.clientY - rect.top;
     
     // Get the starting dimensions that were saved when resize began (needed for consistent resizing)
-    const startWidth = resizeStart.width !== undefined ? resizeStart.width : 200;
-    const startHeight = resizeStart.height !== undefined ? resizeStart.height : 150;
-    const startX = resizeStart.x !== undefined ? resizeStart.x : 0;
-    const startY = resizeStart.y !== undefined ? resizeStart.y : 0;
+    // Use direct values from resizeStart, not derived values from percentages
+    const startWidth = resizeStart.width;
+    const startHeight = resizeStart.height;
+    const startX = resizeStart.x;
+    const startY = resizeStart.y;
     
     // Calculate the mouse movement delta from the original position
-    const deltaX = currentX - (dragOffset.x + startX);
-    const deltaY = currentY - (dragOffset.y + startY);
+    const mouseX = currentX;
+    const mouseY = currentY;
     
-    // Calculate new dimensions based on resize direction - use the starting values and deltas
-    // This creates smooth, predictable resizing behavior based on mouse movement
+    // Calculate new dimensions based on resize direction - use direct calculations
     let newWidth = startWidth;
     let newHeight = startHeight;
     let newX = startX;
     let newY = startY;
     
-    // Strict size constraints (in percentages)
+    // STRICT SIZE CONSTRAINTS - critical for preventing element explosion
+    // Much more conservative max size limits
     const minWidthPercent = 5;
     const minHeightPercent = 5;
-    const maxWidthPercent = 200; // allow up to 2x the container width
-    const maxHeightPercent = 200; // allow up to 2x the container height
+    const maxWidthPercent = 100; // Max 100% of container width - reduced from 200%
+    const maxHeightPercent = 100; // Max 100% of container height - reduced from 200%
     
     // Convert percent limits to pixels
     const minWidth = (minWidthPercent / 100) * rect.width;
@@ -253,74 +310,80 @@ export function PreviewPanel() {
     const maxWidth = (maxWidthPercent / 100) * rect.width;
     const maxHeight = (maxHeightPercent / 100) * rect.height;
     
-    // Apply resize deltas based on direction
-    if (resizeDirection.includes('e')) { // East (right)
-      newWidth = startWidth + deltaX;
+    // Track absolute mouse position rather than calculating deltas
+    // This prevents exponential growth on rapid movements
+    if (resizeDirection === 'se') { // Southeast (bottom-right)
+      // Direct calculation using mouse position
+      newWidth = Math.max(minWidth, Math.min(maxWidth, mouseX - startX));
+      newHeight = Math.max(minHeight, Math.min(maxHeight, mouseY - startY));
+    } 
+    else if (resizeDirection === 'sw') { // Southwest (bottom-left)
+      const rightEdge = startX + startWidth;
+      newX = Math.min(startX, Math.max(0, mouseX));
+      newWidth = Math.max(minWidth, Math.min(maxWidth, rightEdge - newX));
+      newHeight = Math.max(minHeight, Math.min(maxHeight, mouseY - startY));
     }
-    if (resizeDirection.includes('w')) { // West (left)
-      newWidth = startWidth - deltaX;
-      newX = startX + deltaX;
+    else if (resizeDirection === 'ne') { // Northeast (top-right)
+      const bottomEdge = startY + startHeight;
+      newWidth = Math.max(minWidth, Math.min(maxWidth, mouseX - startX));
+      newY = Math.min(startY, Math.max(0, mouseY));
+      newHeight = Math.max(minHeight, Math.min(maxHeight, bottomEdge - newY));
     }
-    if (resizeDirection.includes('s')) { // South (bottom)
-      newHeight = startHeight + deltaY;
+    else if (resizeDirection === 'nw') { // Northwest (top-left)
+      const rightEdge = startX + startWidth;
+      const bottomEdge = startY + startHeight;
+      newX = Math.min(startX, Math.max(0, mouseX));
+      newY = Math.min(startY, Math.max(0, mouseY));
+      newWidth = Math.max(minWidth, Math.min(maxWidth, rightEdge - newX));
+      newHeight = Math.max(minHeight, Math.min(maxHeight, bottomEdge - newY));
     }
-    if (resizeDirection.includes('n')) { // North (top)
-      newHeight = startHeight - deltaY;
-      newY = startY + deltaY;
-    }
-    
-    // Enforce min/max constraints
-    newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
-    newHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
-    
-    // Prevent resizing from the left or top from pushing the element off-canvas
-    if (resizeDirection.includes('w')) {
-      // If resizing would push element off-left, adjust width and position
-      if (newX < 0) {
-        const adjustment = 0 - newX;
-        newX = 0;
-        newWidth = Math.max(minWidth, newWidth - adjustment);
+    else {
+      // For single-direction resizing
+      if (resizeDirection.includes('e')) { // East (right)
+        newWidth = Math.max(minWidth, Math.min(maxWidth, mouseX - startX));
+      }
+      else if (resizeDirection.includes('w')) { // West (left)
+        const rightEdge = startX + startWidth;
+        newX = Math.min(startX, Math.max(0, mouseX));
+        newWidth = Math.max(minWidth, Math.min(maxWidth, rightEdge - newX));
+      }
+      if (resizeDirection.includes('s')) { // South (bottom)
+        newHeight = Math.max(minHeight, Math.min(maxHeight, mouseY - startY));
+      }
+      else if (resizeDirection.includes('n')) { // North (top)
+        const bottomEdge = startY + startHeight;
+        newY = Math.min(startY, Math.max(0, mouseY));
+        newHeight = Math.max(minHeight, Math.min(maxHeight, bottomEdge - newY));
       }
     }
     
-    if (resizeDirection.includes('n')) {
-      // If resizing would push element off-top, adjust height and position
-      if (newY < 0) {
-        const adjustment = 0 - newY;
-        newY = 0;
-        newHeight = Math.max(minHeight, newHeight - adjustment);
-      }
+    // Log resize data periodically for debugging
+    if (Date.now() % 50 === 0) {
+      console.log('Resizing layer', {
+        id: layer.id,
+        direction: resizeDirection,
+        startDimensions: { x: startX, y: startY, width: startWidth, height: startHeight },
+        newDimensions: { x: newX, y: newY, width: newWidth, height: newHeight },
+        mousePosition: { x: mouseX, y: mouseY }
+      });
     }
     
     // Calculate percentage positions for cross-view compatibility
-    // These are normalized to the PreviewPanel dimensions
     const xPercent = (newX / rect.width) * 100;
     const yPercent = (newY / rect.height) * 100;
     const widthPercent = (newWidth / rect.width) * 100;
     const heightPercent = (newHeight / rect.height) * 100;
     
-    // Enforce percentage constraints too
-    const constrainedXPercent = Math.max(0, Math.min(95, xPercent));
-    const constrainedYPercent = Math.max(0, Math.min(95, yPercent));
-    const constrainedWidthPercent = Math.max(minWidthPercent, Math.min(maxWidthPercent, widthPercent));
-    const constrainedHeightPercent = Math.max(minHeightPercent, Math.min(maxHeightPercent, heightPercent));
-    
-    // Convert constrained percentages back to pixels
-    const constrainedX = (constrainedXPercent / 100) * rect.width;
-    const constrainedY = (constrainedYPercent / 100) * rect.height;
-    const constrainedWidth = (constrainedWidthPercent / 100) * rect.width;
-    const constrainedHeight = (constrainedHeightPercent / 100) * rect.height;
-    
-    // Apply constraints and create final position update
+    // Final position - use the direct calculations but apply hard limits to prevent any possibility of explosion
     const constrainedPosition = {
-      x: constrainedX,
-      y: constrainedY,
-      width: constrainedWidth,
-      height: constrainedHeight,
-      xPercent: constrainedXPercent,
-      yPercent: constrainedYPercent,
-      widthPercent: constrainedWidthPercent,
-      heightPercent: constrainedHeightPercent
+      x: newX,
+      y: newY,
+      width: Math.min(rect.width, newWidth), // Absolute max is container width
+      height: Math.min(rect.height, newHeight), // Absolute max is container height
+      xPercent: Math.max(0, Math.min(95, xPercent)),
+      yPercent: Math.max(0, Math.min(95, yPercent)),
+      widthPercent: Math.max(5, Math.min(100, widthPercent)), // Hard cap at 100%
+      heightPercent: Math.max(5, Math.min(100, heightPercent)) // Hard cap at 100%
     };
     
     // Update layers with new dimensions
