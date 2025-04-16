@@ -10,6 +10,11 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { RotateCcw } from "lucide-react";
 
+// FIXED REFERENCE DIMENSIONS
+// OBS/Stream canvas is 1920x1080, use these as our base reference size
+const REFERENCE_WIDTH = 1920;
+const REFERENCE_HEIGHT = 1080;
+
 // Utility functions for snapping to grid and center
 function snapToGrid(value: number, step = 5): number {
   return Math.round(value / step) * step;
@@ -25,6 +30,12 @@ function snapToCenter(value: number, containerSize: number, threshold = 3): numb
   }
   return value;
 }
+
+// STRICT size limits to prevent explosion
+const MIN_WIDTH_PERCENT = 5;  // Minimum 5% of container width
+const MIN_HEIGHT_PERCENT = 5; // Minimum 5% of container height
+const MAX_WIDTH_PERCENT = 90; // Maximum 90% of container width
+const MAX_HEIGHT_PERCENT = 90; // Maximum 90% of container height
 
 // History tracking for undo functionality
 interface LayerHistoryEntry {
@@ -276,114 +287,144 @@ export function PreviewPanel() {
     const layer = layers.find(l => l.id === dragTarget);
     if (!layer) return;
 
+    // Get current preview panel dimensions
     const rect = previewRef.current.getBoundingClientRect();
-    const currentX = e.clientX - rect.left;
-    const currentY = e.clientY - rect.top;
     
-    // Get the starting dimensions that were saved when resize began (needed for consistent resizing)
-    // Use direct values from resizeStart, not derived values from percentages
-    const startWidth = resizeStart.width;
-    const startHeight = resizeStart.height;
-    const startX = resizeStart.x;
-    const startY = resizeStart.y;
+    // Current mouse position relative to container
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
     
-    // Calculate the mouse movement delta from the original position
-    const mouseX = currentX;
-    const mouseY = currentY;
+    // MUCH SIMPLER APPROACH: Fixed reference dimensions for all calculations
+    // This will prevent any calculations from exploding with percentage-based math
     
-    // Calculate new dimensions based on resize direction - use direct calculations
-    let newWidth = startWidth;
-    let newHeight = startHeight;
-    let newX = startX;
-    let newY = startY;
+    // Initialize newPosition with default values
+    let newPosition = {
+      x: resizeStart.x,
+      y: resizeStart.y,
+      width: resizeStart.width,
+      height: resizeStart.height
+    };
     
-    // STRICT SIZE CONSTRAINTS - critical for preventing element explosion
-    // Much more conservative max size limits
-    const minWidthPercent = 5;
-    const minHeightPercent = 5;
-    const maxWidthPercent = 100; // Max 100% of container width - reduced from 200%
-    const maxHeightPercent = 100; // Max 100% of container height - reduced from 200%
+    // Minimum/maximum size constraints in pixels
+    const minWidth = MIN_WIDTH_PERCENT * rect.width / 100;
+    const minHeight = MIN_HEIGHT_PERCENT * rect.height / 100;
+    const maxWidth = MAX_WIDTH_PERCENT * rect.width / 100;
+    const maxHeight = MAX_HEIGHT_PERCENT * rect.height / 100;
     
-    // Convert percent limits to pixels
-    const minWidth = (minWidthPercent / 100) * rect.width;
-    const minHeight = (minHeightPercent / 100) * rect.height;
-    const maxWidth = (maxWidthPercent / 100) * rect.width;
-    const maxHeight = (maxHeightPercent / 100) * rect.height;
+    console.log('Resize constraints:', {
+      minWidth, minHeight, maxWidth, maxHeight,
+      mousePos: { x: mouseX, y: mouseY },
+      resizeStart: resizeStart,
+      direction: resizeDirection
+    });
     
-    // Track absolute mouse position rather than calculating deltas
-    // This prevents exponential growth on rapid movements
-    if (resizeDirection === 'se') { // Southeast (bottom-right)
-      // Direct calculation using mouse position
-      newWidth = Math.max(minWidth, Math.min(maxWidth, mouseX - startX));
-      newHeight = Math.max(minHeight, Math.min(maxHeight, mouseY - startY));
-    } 
-    else if (resizeDirection === 'sw') { // Southwest (bottom-left)
-      const rightEdge = startX + startWidth;
-      newX = Math.min(startX, Math.max(0, mouseX));
-      newWidth = Math.max(minWidth, Math.min(maxWidth, rightEdge - newX));
-      newHeight = Math.max(minHeight, Math.min(maxHeight, mouseY - startY));
+    // Core resizing logic - simplified and based on absolute mouse position
+    switch (resizeDirection) {
+      case 'se': // Southeast - resize width & height only
+        newPosition = {
+          ...newPosition,
+          width: Math.max(minWidth, Math.min(maxWidth, mouseX - resizeStart.x)),
+          height: Math.max(minHeight, Math.min(maxHeight, mouseY - resizeStart.y))
+        };
+        break;
+        
+      case 'sw': // Southwest - resize width, move x, resize height
+        const rightEdgeSW = resizeStart.x + resizeStart.width;
+        const newWidthSW = Math.max(minWidth, Math.min(maxWidth, rightEdgeSW - mouseX));
+        
+        newPosition = {
+          ...newPosition,
+          x: rightEdgeSW - newWidthSW,
+          width: newWidthSW,
+          height: Math.max(minHeight, Math.min(maxHeight, mouseY - resizeStart.y))
+        };
+        break;
+        
+      case 'ne': // Northeast - resize width, resize height, move y
+        const bottomEdgeNE = resizeStart.y + resizeStart.height;
+        const newHeightNE = Math.max(minHeight, Math.min(maxHeight, bottomEdgeNE - mouseY));
+        
+        newPosition = {
+          ...newPosition,
+          y: bottomEdgeNE - newHeightNE,
+          width: Math.max(minWidth, Math.min(maxWidth, mouseX - resizeStart.x)),
+          height: newHeightNE
+        };
+        break;
+        
+      case 'nw': // Northwest - resize width, move x, resize height, move y
+        const rightEdgeNW = resizeStart.x + resizeStart.width;
+        const bottomEdgeNW = resizeStart.y + resizeStart.height;
+        const newWidthNW = Math.max(minWidth, Math.min(maxWidth, rightEdgeNW - mouseX));
+        const newHeightNW = Math.max(minHeight, Math.min(maxHeight, bottomEdgeNW - mouseY));
+        
+        newPosition = {
+          ...newPosition,
+          x: rightEdgeNW - newWidthNW,
+          y: bottomEdgeNW - newHeightNW,
+          width: newWidthNW,
+          height: newHeightNW
+        };
+        break;
+        
+      case 'e': // East - resize width only
+        newPosition = {
+          ...newPosition,
+          width: Math.max(minWidth, Math.min(maxWidth, mouseX - resizeStart.x))
+        };
+        break;
+        
+      case 'w': // West - resize width and move x
+        const rightEdgeW = resizeStart.x + resizeStart.width;
+        const newWidthW = Math.max(minWidth, Math.min(maxWidth, rightEdgeW - mouseX));
+        
+        newPosition = {
+          ...newPosition,
+          x: rightEdgeW - newWidthW,
+          width: newWidthW
+        };
+        break;
+        
+      case 's': // South - resize height only
+        newPosition = {
+          ...newPosition,
+          height: Math.max(minHeight, Math.min(maxHeight, mouseY - resizeStart.y))
+        };
+        break;
+        
+      case 'n': // North - resize height and move y
+        const bottomEdgeN = resizeStart.y + resizeStart.height;
+        const newHeightN = Math.max(minHeight, Math.min(maxHeight, bottomEdgeN - mouseY));
+        
+        newPosition = {
+          ...newPosition,
+          y: bottomEdgeN - newHeightN,
+          height: newHeightN
+        };
+        break;
     }
-    else if (resizeDirection === 'ne') { // Northeast (top-right)
-      const bottomEdge = startY + startHeight;
-      newWidth = Math.max(minWidth, Math.min(maxWidth, mouseX - startX));
-      newY = Math.min(startY, Math.max(0, mouseY));
-      newHeight = Math.max(minHeight, Math.min(maxHeight, bottomEdge - newY));
-    }
-    else if (resizeDirection === 'nw') { // Northwest (top-left)
-      const rightEdge = startX + startWidth;
-      const bottomEdge = startY + startHeight;
-      newX = Math.min(startX, Math.max(0, mouseX));
-      newY = Math.min(startY, Math.max(0, mouseY));
-      newWidth = Math.max(minWidth, Math.min(maxWidth, rightEdge - newX));
-      newHeight = Math.max(minHeight, Math.min(maxHeight, bottomEdge - newY));
-    }
-    else {
-      // For single-direction resizing
-      if (resizeDirection.includes('e')) { // East (right)
-        newWidth = Math.max(minWidth, Math.min(maxWidth, mouseX - startX));
-      }
-      else if (resizeDirection.includes('w')) { // West (left)
-        const rightEdge = startX + startWidth;
-        newX = Math.min(startX, Math.max(0, mouseX));
-        newWidth = Math.max(minWidth, Math.min(maxWidth, rightEdge - newX));
-      }
-      if (resizeDirection.includes('s')) { // South (bottom)
-        newHeight = Math.max(minHeight, Math.min(maxHeight, mouseY - startY));
-      }
-      else if (resizeDirection.includes('n')) { // North (top)
-        const bottomEdge = startY + startHeight;
-        newY = Math.min(startY, Math.max(0, mouseY));
-        newHeight = Math.max(minHeight, Math.min(maxHeight, bottomEdge - newY));
-      }
-    }
     
-    // Log resize data periodically for debugging
-    if (Date.now() % 50 === 0) {
-      console.log('Resizing layer', {
-        id: layer.id,
-        direction: resizeDirection,
-        startDimensions: { x: startX, y: startY, width: startWidth, height: startHeight },
-        newDimensions: { x: newX, y: newY, width: newWidth, height: newHeight },
-        mousePosition: { x: mouseX, y: mouseY }
-      });
-    }
+    // Convert to percentages for cross-view compatibility
+    // Critical - percentages must be calculated based on the element's final PIXEL values
+    // against the container's PIXEL dimensions to avoid precision issues
+    const xPercent = (newPosition.x / rect.width) * 100;
+    const yPercent = (newPosition.y / rect.height) * 100;
+    const widthPercent = (newPosition.width / rect.width) * 100;
+    const heightPercent = (newPosition.height / rect.height) * 100;
     
-    // Calculate percentage positions for cross-view compatibility
-    const xPercent = (newX / rect.width) * 100;
-    const yPercent = (newY / rect.height) * 100;
-    const widthPercent = (newWidth / rect.width) * 100;
-    const heightPercent = (newHeight / rect.height) * 100;
-    
-    // Final position - use the direct calculations but apply hard limits to prevent any possibility of explosion
+    // Final position with hard clamps on all values to prevent any possibility of explosion
     const constrainedPosition = {
-      x: newX,
-      y: newY,
-      width: Math.min(rect.width, newWidth), // Absolute max is container width
-      height: Math.min(rect.height, newHeight), // Absolute max is container height
-      xPercent: Math.max(0, Math.min(95, xPercent)),
-      yPercent: Math.max(0, Math.min(95, yPercent)),
-      widthPercent: Math.max(5, Math.min(100, widthPercent)), // Hard cap at 100%
-      heightPercent: Math.max(5, Math.min(100, heightPercent)) // Hard cap at 100%
+      // Pixel values - critical for Stream Output
+      x: Math.max(0, Math.min(rect.width - minWidth, newPosition.x)),
+      y: Math.max(0, Math.min(rect.height - minHeight, newPosition.y)),
+      width: Math.max(minWidth, Math.min(maxWidth, newPosition.width)),
+      height: Math.max(minHeight, Math.min(maxHeight, newPosition.height)),
+      
+      // Percentage values - critical for responsive behavior
+      xPercent: Math.max(0, Math.min(90, xPercent)),
+      yPercent: Math.max(0, Math.min(90, yPercent)),
+      widthPercent: Math.max(MIN_WIDTH_PERCENT, Math.min(MAX_WIDTH_PERCENT, widthPercent)),
+      heightPercent: Math.max(MIN_HEIGHT_PERCENT, Math.min(MAX_HEIGHT_PERCENT, heightPercent))
     };
     
     // Update layers with new dimensions
@@ -529,30 +570,49 @@ export function PreviewPanel() {
         try {
           const rect = previewRef.current.getBoundingClientRect();
           
-          // Apply snapping and constraints to percentages
-          let { xPercent, yPercent, widthPercent, heightPercent } = layer.position;
+          // Get current position values - ensure all values are defined
+          let { 
+            x = 0, 
+            y = 0, 
+            width = rect.width * 0.3, 
+            height = rect.height * 0.3, 
+            xPercent = 0, 
+            yPercent = 0, 
+            widthPercent = 30, 
+            heightPercent = 30 
+          } = layer.position;
           
-          // Snap percentages to grid (increments of 5%)
-          if (xPercent !== undefined) xPercent = snapToGrid(xPercent);
-          if (yPercent !== undefined) yPercent = snapToGrid(yPercent);
-          if (widthPercent !== undefined) widthPercent = snapToGrid(widthPercent);
-          if (heightPercent !== undefined) heightPercent = snapToGrid(heightPercent);
+          // CRITICAL: Apply strict size limits first to prevent invalid values
+          // Apply hard constraints on percentages
+          xPercent = Math.max(0, Math.min(90, xPercent));
+          yPercent = Math.max(0, Math.min(90, yPercent));
+          widthPercent = Math.max(MIN_WIDTH_PERCENT, Math.min(MAX_WIDTH_PERCENT, widthPercent));
+          heightPercent = Math.max(MIN_HEIGHT_PERCENT, Math.min(MAX_HEIGHT_PERCENT, heightPercent));
           
-          // Snap to center if close
-          if (xPercent !== undefined) xPercent = snapToCenter(xPercent, 100);
-          if (yPercent !== undefined) yPercent = snapToCenter(yPercent, 100);
+          // Now perform snapping
+          xPercent = snapToGrid(xPercent);
+          yPercent = snapToGrid(yPercent);
+          widthPercent = snapToGrid(widthPercent);
+          heightPercent = snapToGrid(heightPercent);
           
-          // Apply constraints on size (minimum 5%, maximum 100%)
-          if (widthPercent !== undefined) widthPercent = Math.max(5, Math.min(100, widthPercent));
-          if (heightPercent !== undefined) heightPercent = Math.max(5, Math.min(100, heightPercent));
+          // Snap center alignment
+          xPercent = snapToCenter(xPercent, 100);
+          yPercent = snapToCenter(yPercent, 100);
           
-          // Convert percentages back to pixels for consistency
-          const x = (xPercent !== undefined) ? (xPercent / 100) * rect.width : layer.position.x;
-          const y = (yPercent !== undefined) ? (yPercent / 100) * rect.height : layer.position.y;
-          const width = (widthPercent !== undefined) ? (widthPercent / 100) * rect.width : layer.position.width;
-          const height = (heightPercent !== undefined) ? (heightPercent / 100) * rect.height : layer.position.height;
+          // Convert percentages to absolute pixel values
+          // This ensures consistent sizing across different views
+          x = (xPercent / 100) * rect.width;
+          y = (yPercent / 100) * rect.height;
           
-          // Create snapped position
+          // Ensure width and height have valid pixel values
+          width = (widthPercent / 100) * rect.width;
+          height = (heightPercent / 100) * rect.height;
+          
+          // Final safety check - avoid any possible explosions
+          width = Math.min(rect.width * 0.9, width);
+          height = Math.min(rect.height * 0.9, height);
+          
+          // Create the position object with both pixel and percentage values
           const snappedPosition = {
             x,
             y,
@@ -604,24 +664,45 @@ export function PreviewPanel() {
         try {
           const rect = previewRef.current.getBoundingClientRect();
           
-          // Apply snapping to grid
-          let { xPercent, yPercent } = layer.position;
+          // Get current position values - ensure all values are defined with defaults
+          let { 
+            x = 0, 
+            y = 0, 
+            width = rect.width * 0.3, 
+            height = rect.height * 0.3, 
+            xPercent = 0, 
+            yPercent = 0, 
+            widthPercent = 30, 
+            heightPercent = 30 
+          } = layer.position;
+          
+          // CRITICAL: Apply strict limits to coordinates to prevent issues
+          // Apply hard constraints on percentages
+          xPercent = Math.max(0, Math.min(90, xPercent));
+          yPercent = Math.max(0, Math.min(90, yPercent));
           
           // Snap percentages to grid (increments of 5%)
-          if (xPercent !== undefined) xPercent = snapToGrid(xPercent);
-          if (yPercent !== undefined) yPercent = snapToGrid(yPercent);
+          xPercent = snapToGrid(xPercent);
+          yPercent = snapToGrid(yPercent);
           
           // Snap to center if close
-          if (xPercent !== undefined) xPercent = snapToCenter(xPercent, 100);
-          if (yPercent !== undefined) yPercent = snapToCenter(yPercent, 100);
+          xPercent = snapToCenter(xPercent, 100);
+          yPercent = snapToCenter(yPercent, 100);
           
-          // Convert percentages back to pixels for consistency
-          const x = (xPercent !== undefined) ? (xPercent / 100) * rect.width : layer.position.x;
-          const y = (yPercent !== undefined) ? (yPercent / 100) * rect.height : layer.position.y;
+          // Convert percentages to absolute pixel values
+          // This ensures consistent positioning across different views
+          x = (xPercent / 100) * rect.width;
+          y = (yPercent / 100) * rect.height;
           
-          // Create snapped position
+          // Final safety check - keep element on screen
+          x = Math.max(0, Math.min(rect.width - 50, x));
+          y = Math.max(0, Math.min(rect.height - 50, y));
+          
+          // Create the final position with both pixel and percentage values
           const snappedPosition = {
+            // Keep original width/height
             ...layer.position,
+            // Update position with new calculated values
             x,
             y,
             xPercent,
