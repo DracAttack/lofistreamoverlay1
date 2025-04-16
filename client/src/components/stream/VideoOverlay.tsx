@@ -10,6 +10,7 @@ interface VideoOverlayProps {
   };
   source?: string;
   loop?: boolean;
+  loopFreely?: boolean; // Added this new option to override scheduling
   autoplay?: boolean;
   muted?: boolean;
   preview?: boolean;
@@ -31,6 +32,7 @@ export function VideoOverlay({
   },
   source,
   loop = true,
+  loopFreely = false, // New option to loop continuously regardless of schedule
   autoplay = true,
   muted = true,
   preview = false,
@@ -128,6 +130,13 @@ export function VideoOverlay({
   
   // Cleaner scheduling implementation
   useEffect(() => {
+    // If loopFreely is true, ignore scheduling and keep video always visible and looping
+    if (loopFreely) {
+      console.log("VideoOverlay: Loop Freely enabled - ignoring schedule settings");
+      setIsVisible(true);
+      return;
+    }
+    
     // Skip scheduling in preview mode
     if (preview || !source || !schedule.enabled) {
       // If in preview mode, make sure visibility matches expectations
@@ -203,7 +212,7 @@ export function VideoOverlay({
     return () => {
       clearInterval(interval);
     };
-  }, [preview, source, schedule.enabled, schedule.interval, schedule.duration, schedule.autoHide]);
+  }, [preview, source, schedule.enabled, schedule.interval, schedule.duration, schedule.autoHide, loopFreely]);
   
   // Handle video end based on loop setting and scheduling
   const handleVideoEnded = () => {
@@ -216,6 +225,20 @@ export function VideoOverlay({
         if (videoRef.current) {
           videoRef.current.play().catch(err => {
             console.error("Failed to restart background video:", err);
+          });
+        }
+      }, 50);
+      return;
+    }
+    
+    // If loopFreely is enabled, always restart the video regardless of loop setting
+    if (loopFreely && videoRef.current) {
+      console.log("VideoOverlay: Loop Freely enabled - restarting video");
+      videoRef.current.load();
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.play().catch(err => {
+            console.error("Failed to restart freely looping video:", err);
           });
         }
       }, 50);

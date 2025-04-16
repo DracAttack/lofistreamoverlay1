@@ -33,6 +33,7 @@ export function LayerEditor() {
   const [scheduleDuration, setScheduleDuration] = useState(5); // 5 seconds default
   const [scheduleAutoHide, setScheduleAutoHide] = useState(true);
   const [scheduleLoop, setScheduleLoop] = useState(true);
+  const [loopFreely, setLoopFreely] = useState(false); // New option to override scheduling
   const [isFullscreen, setIsFullscreen] = useState(false);
   const { toast } = useToast();
   
