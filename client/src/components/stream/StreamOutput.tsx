@@ -5,7 +5,7 @@ import { QuoteOverlay } from "./QuoteOverlay";
 import { SpotifyWidget } from "./SpotifyWidget";
 import { VideoOverlay } from "./VideoOverlay";
 import { TimerOverlay } from "./TimerOverlay";
-import { StreamVideoPlayer } from "./StreamVideoPlayer";
+import { PersistentVideoPlayer } from "./PersistentVideoPlayer";
 import { useLayoutContext } from "@/context/LayoutContext";
 
 interface StreamOutputProps {
@@ -375,10 +375,10 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
               <>
                 {/\.(mp4|webm|ogg|mov)$/i.test(layer.content.source) ? (
                   isBackgroundLayer ? (
-                    // For background layer (Layer 1), use the optimized 24/7 stream player
-                    // This will never reload or reset on component rerender
-                    <StreamVideoPlayer
-                      key={`stream-video-${layer.id}`} // Stable key for React reconciliation
+                    // For background layer (Layer 1), use the persistent player
+                    // This will never reload or reset on browser refresh
+                    <PersistentVideoPlayer
+                      key={`persistent-${layer.id}`} // Stable key for React reconciliation
                       source={layer.content.source}
                       style={{
                         backgroundColor: /\.webm$/i.test(layer.content.source) ? 'transparent' : layer.style.backgroundColor,
@@ -388,7 +388,7 @@ export function StreamOutput({ aspectRatio }: StreamOutputProps = {}) {
                         opacity: layer.style.opacity !== undefined ? 
                           parseFloat(layer.style.opacity as unknown as string) : 1
                       }}
-                      isBackground={true}
+                      playbackMode="background"
                     /> 
                   ) : (
                     // For non-background layers, keep the scheduling capability
