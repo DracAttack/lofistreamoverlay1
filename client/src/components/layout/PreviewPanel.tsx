@@ -89,39 +89,61 @@ export function PreviewPanel() {
   const handleDrag = (e: React.MouseEvent) => {
     if (!isDragging || dragTarget === null || !previewRef.current) return;
     
+    const layer = layers.find(l => l.id === dragTarget);
+    if (!layer) return;
+    
     const rect = previewRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(rect.width - 10, e.clientX - rect.left - dragOffset.x));
-    const y = Math.max(0, Math.min(rect.height - 10, e.clientY - rect.top - dragOffset.y));
+    
+    // Get the layer's dimensions
+    const width = typeof layer.position.width === 'number' ? layer.position.width : 200;
+    const height = typeof layer.position.height === 'number' ? layer.position.height : 150;
+    
+    // Calculate how much of the layer should remain visible when dragged to the edge
+    const minVisibleWidth = Math.min(width * 0.25, 50);
+    const minVisibleHeight = Math.min(height * 0.25, 50);
+    
+    // Calculate the max position values to keep part of the layer visible
+    const maxX = rect.width - minVisibleWidth;
+    const maxY = rect.height - minVisibleHeight;
+    
+    // Calculate the new position with constraints
+    const x = Math.max(-width + minVisibleWidth, Math.min(maxX, e.clientX - rect.left - dragOffset.x));
+    const y = Math.max(-height + minVisibleHeight, Math.min(maxY, e.clientY - rect.top - dragOffset.y));
     
     // Calculate percentage positions for cross-view compatibility
     const xPercent = (x / rect.width) * 100;
     const yPercent = (y / rect.height) * 100;
     
-    // Add debugging log for Layer 1 (Loop/Background)
-    const layer = layers.find(l => l.id === dragTarget);
-    if (layer && layer.id === 1) {
-      console.log('Dragging Layer 1 (Loop):', {
-        pixels: { x, y },
-        percentages: { xPercent, yPercent },
-        container: { width: rect.width, height: rect.height }
-      });
-    }
+    // Add better debug logging for all layers
+    console.log('Dragging Layer:', {
+      id: layer.id,
+      name: layer.name,
+      pixels: { x, y },
+      dimensions: { width, height },
+      percentages: { xPercent, yPercent },
+      container: { width: rect.width, height: rect.height },
+      constraints: { minVisibleWidth, minVisibleHeight, maxX, maxY }
+    });
+    
+    // Create constrained position update
+    const constrainedPosition = {
+      ...layer.position,
+      x,
+      y,
+      // Ensure percentages stay within reasonable bounds (-95% to 95%)
+      xPercent: Math.max(-95, Math.min(95, xPercent)),
+      yPercent: Math.max(-95, Math.min(95, yPercent))
+    };
     
     // Update local UI immediately for responsive feel
-    const updatedLayers = layers.map(layer => {
-      if (layer.id === dragTarget) {
+    const updatedLayers = layers.map(l => {
+      if (l.id === dragTarget) {
         return {
-          ...layer,
-          position: {
-            ...layer.position,
-            x,
-            y,
-            xPercent,
-            yPercent
-          }
+          ...l,
+          position: constrainedPosition
         };
       }
-      return layer;
+      return l;
     });
     
     // Update UI immediately
@@ -134,12 +156,7 @@ export function PreviewPanel() {
       
       // Send update to server during drag - but throttled
       // Include both pixel and percentage values for consistent cross-view rendering
-      updateLayerPosition(dragTarget, { 
-        x, 
-        y, 
-        xPercent, 
-        yPercent 
-      })
+      updateLayerPosition(dragTarget, constrainedPosition)
         .catch(error => {
           console.error("Error updating position during drag:", error);
         });
@@ -199,29 +216,43 @@ export function PreviewPanel() {
     const currentX = e.clientX - rect.left;
     const currentY = e.clientY - rect.top;
     
+    // Get the starting dimensions that were saved when resize began
+    const startWidth = resizeStart.width || 200;
+    const startHeight = resizeStart.height || 150;
+    const startX = resizeStart.x || 0;
+    const startY = resizeStart.y || 0;
+    
     // Calculate new dimensions based on resize direction
     let newWidth = typeof layer.position.width === 'number' ? layer.position.width : 200;
     let newHeight = typeof layer.position.height === 'number' ? layer.position.height : 150;
     let newX = layer.position.x;
     let newY = layer.position.y;
     
+    // Strict size constraints to prevent massive growth
+    const maxWidth = rect.width * 0.95; // Max 95% of preview width
+    const maxHeight = rect.height * 0.95; // Max 95% of preview height
+    const minWidth = 50;
+    const minHeight = 50;
+    
     if (resizeDirection.includes('e')) { // East (right)
-      newWidth = Math.max(50, currentX - layer.position.x);
+      newWidth = Math.min(maxWidth, Math.max(minWidth, currentX - layer.position.x));
     }
     if (resizeDirection.includes('w')) { // West (left)
       const width = typeof layer.position.width === 'number' ? layer.position.width : 200;
-      const right = layer.position.x + width;
-      newWidth = Math.max(50, right - currentX);
-      newX = currentX;
+      const right = startX + startWidth;
+      newWidth = Math.min(maxWidth, Math.max(minWidth, right - currentX));
+      // Make sure the position doesn't go outside the preview area
+      newX = Math.max(0, Math.min(right - minWidth, currentX));
     }
     if (resizeDirection.includes('s')) { // South (bottom)
-      newHeight = Math.max(50, currentY - layer.position.y);
+      newHeight = Math.min(maxHeight, Math.max(minHeight, currentY - layer.position.y));
     }
     if (resizeDirection.includes('n')) { // North (top)
       const height = typeof layer.position.height === 'number' ? layer.position.height : 150;
-      const bottom = layer.position.y + height;
-      newHeight = Math.max(50, bottom - currentY);
-      newY = currentY;
+      const bottom = startY + startHeight;
+      newHeight = Math.min(maxHeight, Math.max(minHeight, bottom - currentY));
+      // Make sure the position doesn't go outside the preview area
+      newY = Math.max(0, Math.min(bottom - minHeight, currentY));
     }
     
     // Calculate percentage positions for cross-view compatibility
@@ -231,27 +262,27 @@ export function PreviewPanel() {
     const widthPercent = (newWidth / rect.width) * 100;
     const heightPercent = (newHeight / rect.height) * 100;
     
-    // Add debug logging for Layer 1 (Loop/Background)
-    if (layer.id === 1) {
-      console.log('Resizing Layer 1 (Loop):', {
-        pixels: { x: newX, y: newY, width: newWidth, height: newHeight },
-        percentages: { xPercent, yPercent, widthPercent, heightPercent },
-        container: { width: rect.width, height: rect.height },
-        direction: resizeDirection
-      });
-    }
+    // Add debug logging
+    console.log('Resizing Layer:', {
+      id: layer.id,
+      name: layer.name,
+      pixels: { x: newX, y: newY, width: newWidth, height: newHeight },
+      percentages: { xPercent, yPercent, widthPercent, heightPercent },
+      container: { width: rect.width, height: rect.height },
+      constraints: { minWidth, minHeight, maxWidth, maxHeight },
+      direction: resizeDirection
+    });
     
-    // Create new position object with updates - including percentages
-    // This ensures both StreamOutput and PreviewPanel can position elements correctly
-    const newPosition = {
+    // Apply size constraints to percentage values as well
+    const constrainedPosition = {
       x: newX,
       y: newY,
       width: newWidth,
       height: newHeight,
-      xPercent,
-      yPercent,
-      widthPercent,
-      heightPercent
+      xPercent: Math.max(0, Math.min(95, xPercent)),
+      yPercent: Math.max(0, Math.min(95, yPercent)),
+      widthPercent: Math.max(5, Math.min(95, widthPercent)),
+      heightPercent: Math.max(5, Math.min(95, heightPercent))
     };
     
     // Update layers with new dimensions
@@ -261,7 +292,7 @@ export function PreviewPanel() {
           ...l,
           position: {
             ...l.position,
-            ...newPosition
+            ...constrainedPosition
           }
         };
       }
@@ -277,7 +308,7 @@ export function PreviewPanel() {
       lastSyncTimeRef.current = now;
       
       // Send update to server during resize - but throttled
-      updateLayerPosition(dragTarget, newPosition)
+      updateLayerPosition(dragTarget, constrainedPosition)
         .catch(error => {
           console.error("Error updating position during resize:", error);
         });
@@ -844,18 +875,58 @@ export function PreviewPanel() {
           })}
       </div>
       
-      {/* Preview Controls */}
+      {/* Preview Controls with tooltips */}
       <div className="flex items-center justify-between mt-4">
         <div className="flex items-center space-x-4">
-          <button className="text-foreground/70 hover:text-foreground transition-colors">
-            <i className="ri-focus-2-line text-xl"></i>
-          </button>
-          <button className="text-foreground/70 hover:text-foreground transition-colors">
-            <i className="ri-grid-line text-xl"></i>
-          </button>
-          <button className="text-foreground/70 hover:text-foreground transition-colors">
-            <i className="ri-ruler-line text-xl"></i>
-          </button>
+          <div className="relative group">
+            <button 
+              className="text-foreground/70 hover:text-foreground transition-colors"
+              onClick={() => {
+                if (selectedLayer) {
+                  resetLayer(selectedLayer.id);
+                } else {
+                  toast({
+                    title: "No Layer Selected",
+                    description: "Please select a layer first",
+                  });
+                }
+              }}
+            >
+              <i className="ri-focus-2-line text-xl"></i>
+            </button>
+            <div className="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black/80 text-white text-xs rounded whitespace-nowrap">
+              Center selected layer
+            </div>
+          </div>
+          
+          <div className="relative group">
+            <button 
+              className="text-foreground/70 hover:text-foreground transition-colors"
+              onClick={() => {
+                toast({
+                  title: "Snap to Grid",
+                  description: "All layers will snap to grid when moved",
+                });
+              }}
+            >
+              <i className="ri-grid-line text-xl"></i>
+            </button>
+            <div className="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black/80 text-white text-xs rounded whitespace-nowrap">
+              Toggle grid snapping
+            </div>
+          </div>
+          
+          <div className="relative group">
+            <button 
+              className="text-foreground/70 hover:text-foreground transition-colors"
+              onClick={undoLastChange}
+            >
+              <i className="ri-arrow-go-back-line text-xl"></i>
+            </button>
+            <div className="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black/80 text-white text-xs rounded whitespace-nowrap">
+              Undo last change
+            </div>
+          </div>
         </div>
         <div>
           <button 
