@@ -102,37 +102,45 @@ export function PreviewPanel() {
     const minVisibleWidth = Math.min(width * 0.25, 50);
     const minVisibleHeight = Math.min(height * 0.25, 50);
     
-    // Calculate the max position values to keep part of the layer visible
+    // Use offset for smooth, accurate dragging (accounts for where user clicked in the element)
+    const newX = e.clientX - rect.left - dragOffset.x;
+    const newY = e.clientY - rect.top - dragOffset.y;
+    
+    // Apply boundaries to keep element partially visible on screen
+    // This prevents the element from being dragged completely off-screen
+    const minX = -width + minVisibleWidth;
+    const minY = -height + minVisibleHeight;
     const maxX = rect.width - minVisibleWidth;
     const maxY = rect.height - minVisibleHeight;
     
-    // Calculate the new position with constraints
-    const x = Math.max(-width + minVisibleWidth, Math.min(maxX, e.clientX - rect.left - dragOffset.x));
-    const y = Math.max(-height + minVisibleHeight, Math.min(maxY, e.clientY - rect.top - dragOffset.y));
+    // Apply constraints
+    const x = Math.max(minX, Math.min(maxX, newX));
+    const y = Math.max(minY, Math.min(maxY, newY));
     
     // Calculate percentage positions for cross-view compatibility
     const xPercent = (x / rect.width) * 100;
     const yPercent = (y / rect.height) * 100;
     
-    // Add better debug logging for all layers
-    console.log('Dragging Layer:', {
-      id: layer.id,
-      name: layer.name,
-      pixels: { x, y },
-      dimensions: { width, height },
-      percentages: { xPercent, yPercent },
-      container: { width: rect.width, height: rect.height },
-      constraints: { minVisibleWidth, minVisibleHeight, maxX, maxY }
-    });
+    // Clean up logging to avoid console spam
+    if (Date.now() % 10 === 0) {  // Only log 10% of the time
+      console.log('Dragging Layer:', {
+        id: layer.id,
+        name: layer.name,
+        pixels: { x, y },
+        dimensions: { width, height },
+        percentages: { xPercent, yPercent },
+        container: { width: rect.width, height: rect.height },
+        constraints: { minX, minY, maxX, maxY }
+      });
+    }
     
-    // Create constrained position update
+    // Create constrained position update - keep original values for width/height
     const constrainedPosition = {
       ...layer.position,
       x,
       y,
-      // Ensure percentages stay within reasonable bounds (-95% to 95%)
-      xPercent: Math.max(-95, Math.min(95, xPercent)),
-      yPercent: Math.max(-95, Math.min(95, yPercent))
+      xPercent,
+      yPercent
     };
     
     // Update local UI immediately for responsive feel
@@ -216,43 +224,72 @@ export function PreviewPanel() {
     const currentX = e.clientX - rect.left;
     const currentY = e.clientY - rect.top;
     
-    // Get the starting dimensions that were saved when resize began
-    const startWidth = resizeStart.width || 200;
-    const startHeight = resizeStart.height || 150;
-    const startX = resizeStart.x || 0;
-    const startY = resizeStart.y || 0;
+    // Get the starting dimensions that were saved when resize began (needed for consistent resizing)
+    const startWidth = resizeStart.width !== undefined ? resizeStart.width : 200;
+    const startHeight = resizeStart.height !== undefined ? resizeStart.height : 150;
+    const startX = resizeStart.x !== undefined ? resizeStart.x : 0;
+    const startY = resizeStart.y !== undefined ? resizeStart.y : 0;
     
-    // Calculate new dimensions based on resize direction
-    let newWidth = typeof layer.position.width === 'number' ? layer.position.width : 200;
-    let newHeight = typeof layer.position.height === 'number' ? layer.position.height : 150;
-    let newX = layer.position.x;
-    let newY = layer.position.y;
+    // Calculate the mouse movement delta from the original position
+    const deltaX = currentX - (dragOffset.x + startX);
+    const deltaY = currentY - (dragOffset.y + startY);
     
-    // Strict size constraints to prevent massive growth
-    const maxWidth = rect.width * 0.95; // Max 95% of preview width
-    const maxHeight = rect.height * 0.95; // Max 95% of preview height
-    const minWidth = 50;
-    const minHeight = 50;
+    // Calculate new dimensions based on resize direction - use the starting values and deltas
+    // This creates smooth, predictable resizing behavior based on mouse movement
+    let newWidth = startWidth;
+    let newHeight = startHeight;
+    let newX = startX;
+    let newY = startY;
     
+    // Strict size constraints (in percentages)
+    const minWidthPercent = 5;
+    const minHeightPercent = 5;
+    const maxWidthPercent = 200; // allow up to 2x the container width
+    const maxHeightPercent = 200; // allow up to 2x the container height
+    
+    // Convert percent limits to pixels
+    const minWidth = (minWidthPercent / 100) * rect.width;
+    const minHeight = (minHeightPercent / 100) * rect.height;
+    const maxWidth = (maxWidthPercent / 100) * rect.width;
+    const maxHeight = (maxHeightPercent / 100) * rect.height;
+    
+    // Apply resize deltas based on direction
     if (resizeDirection.includes('e')) { // East (right)
-      newWidth = Math.min(maxWidth, Math.max(minWidth, currentX - layer.position.x));
+      newWidth = startWidth + deltaX;
     }
     if (resizeDirection.includes('w')) { // West (left)
-      const width = typeof layer.position.width === 'number' ? layer.position.width : 200;
-      const right = startX + startWidth;
-      newWidth = Math.min(maxWidth, Math.max(minWidth, right - currentX));
-      // Make sure the position doesn't go outside the preview area
-      newX = Math.max(0, Math.min(right - minWidth, currentX));
+      newWidth = startWidth - deltaX;
+      newX = startX + deltaX;
     }
     if (resizeDirection.includes('s')) { // South (bottom)
-      newHeight = Math.min(maxHeight, Math.max(minHeight, currentY - layer.position.y));
+      newHeight = startHeight + deltaY;
     }
     if (resizeDirection.includes('n')) { // North (top)
-      const height = typeof layer.position.height === 'number' ? layer.position.height : 150;
-      const bottom = startY + startHeight;
-      newHeight = Math.min(maxHeight, Math.max(minHeight, bottom - currentY));
-      // Make sure the position doesn't go outside the preview area
-      newY = Math.max(0, Math.min(bottom - minHeight, currentY));
+      newHeight = startHeight - deltaY;
+      newY = startY + deltaY;
+    }
+    
+    // Enforce min/max constraints
+    newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+    newHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
+    
+    // Prevent resizing from the left or top from pushing the element off-canvas
+    if (resizeDirection.includes('w')) {
+      // If resizing would push element off-left, adjust width and position
+      if (newX < 0) {
+        const adjustment = 0 - newX;
+        newX = 0;
+        newWidth = Math.max(minWidth, newWidth - adjustment);
+      }
+    }
+    
+    if (resizeDirection.includes('n')) {
+      // If resizing would push element off-top, adjust height and position
+      if (newY < 0) {
+        const adjustment = 0 - newY;
+        newY = 0;
+        newHeight = Math.max(minHeight, newHeight - adjustment);
+      }
     }
     
     // Calculate percentage positions for cross-view compatibility
@@ -262,27 +299,28 @@ export function PreviewPanel() {
     const widthPercent = (newWidth / rect.width) * 100;
     const heightPercent = (newHeight / rect.height) * 100;
     
-    // Add debug logging
-    console.log('Resizing Layer:', {
-      id: layer.id,
-      name: layer.name,
-      pixels: { x: newX, y: newY, width: newWidth, height: newHeight },
-      percentages: { xPercent, yPercent, widthPercent, heightPercent },
-      container: { width: rect.width, height: rect.height },
-      constraints: { minWidth, minHeight, maxWidth, maxHeight },
-      direction: resizeDirection
-    });
+    // Enforce percentage constraints too
+    const constrainedXPercent = Math.max(0, Math.min(95, xPercent));
+    const constrainedYPercent = Math.max(0, Math.min(95, yPercent));
+    const constrainedWidthPercent = Math.max(minWidthPercent, Math.min(maxWidthPercent, widthPercent));
+    const constrainedHeightPercent = Math.max(minHeightPercent, Math.min(maxHeightPercent, heightPercent));
     
-    // Apply size constraints to percentage values as well
+    // Convert constrained percentages back to pixels
+    const constrainedX = (constrainedXPercent / 100) * rect.width;
+    const constrainedY = (constrainedYPercent / 100) * rect.height;
+    const constrainedWidth = (constrainedWidthPercent / 100) * rect.width;
+    const constrainedHeight = (constrainedHeightPercent / 100) * rect.height;
+    
+    // Apply constraints and create final position update
     const constrainedPosition = {
-      x: newX,
-      y: newY,
-      width: newWidth,
-      height: newHeight,
-      xPercent: Math.max(0, Math.min(95, xPercent)),
-      yPercent: Math.max(0, Math.min(95, yPercent)),
-      widthPercent: Math.max(5, Math.min(95, widthPercent)),
-      heightPercent: Math.max(5, Math.min(95, heightPercent))
+      x: constrainedX,
+      y: constrainedY,
+      width: constrainedWidth,
+      height: constrainedHeight,
+      xPercent: constrainedXPercent,
+      yPercent: constrainedYPercent,
+      widthPercent: constrainedWidthPercent,
+      heightPercent: constrainedHeightPercent
     };
     
     // Update layers with new dimensions
@@ -556,29 +594,35 @@ export function PreviewPanel() {
     setDragTarget(null);
   };
 
+  // Add global mouse handling that works even outside the component
   useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleDrag as any);
-      document.addEventListener('mouseup', endDrag);
-      
-      return () => {
-        document.removeEventListener('mousemove', handleDrag as any);
-        document.removeEventListener('mouseup', endDrag);
-      };
-    }
-  }, [isDragging, dragTarget]);
-
-  useEffect(() => {
-    if (isResizing) {
-      document.addEventListener('mousemove', handleResize as any);
-      document.addEventListener('mouseup', endResize);
-      
-      return () => {
-        document.removeEventListener('mousemove', handleResize as any);
-        document.removeEventListener('mouseup', endResize);
-      };
-    }
-  }, [isResizing, dragTarget, resizeDirection]);
+    // Global handlers to ensure drag/resize stops even if mouse leaves the component
+    const globalMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        handleDrag(e as any);
+      } else if (isResizing) {
+        handleResize(e as any);
+      }
+    };
+    
+    const globalMouseUp = () => {
+      if (isDragging) {
+        endDrag();
+      } else if (isResizing) {
+        endResize();
+      }
+    };
+    
+    // Add event listeners to the whole document
+    document.addEventListener('mousemove', globalMouseMove);
+    document.addEventListener('mouseup', globalMouseUp);
+    
+    // Clean up
+    return () => {
+      document.removeEventListener('mousemove', globalMouseMove);
+      document.removeEventListener('mouseup', globalMouseUp);
+    };
+  }, [isDragging, isResizing, dragTarget, resizeDirection]);
   
   // Set up event listeners for layer tools (reset and undo)
   useEffect(() => {

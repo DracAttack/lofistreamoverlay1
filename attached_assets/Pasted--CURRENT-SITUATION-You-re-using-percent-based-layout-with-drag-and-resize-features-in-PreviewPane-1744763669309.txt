@@ -1,0 +1,117 @@
+🧠 CURRENT SITUATION:
+You're using percent-based layout with drag and resize features in PreviewPanel.tsx, but:
+
+Resizing is wildly unstable, often snapping to 0px or 8000px
+
+Elements keep dragging even after releasing the mouse
+
+No debounce or delta calculation causes snapping/jumping
+
+Layout changes instantly update Stream Output, without a commit step
+
+The UI is getting cluttered, with too many controls at the bottom
+
+Loop behavior is tied only to scheduling — there's no “loop freely” option
+
+✅ PROPOSED ENHANCEMENTS (LET REPLIT HANDLE THESE PATCHES):
+🔧 1. 🪄 Fix Resizing Instability
+Update handleResize() to:
+
+Clamp width/height between 5% and 200%
+
+Use startWidth/startHeight state to calculate delta (not raw drag distance)
+
+Prevent any resize from pushing an element off-canvas
+
+ts
+Copy
+Edit
+width: Math.max(5, Math.min(200, calculatedWidth)),
+height: Math.max(5, Math.min(200, calculatedHeight))
+🔧 2. 🛑 Fix Drag That Doesn’t Stop
+Currently isDragging stays true after mouse is released.
+
+Fix:
+
+Add window.addEventListener("mouseup", stopDrag) and mouseleave
+
+In stopDrag(), call setIsDragging(false) and flush any drag delta
+
+This ensures dragging ends immediately when the user lets go.
+
+🔧 3. 🗂 Enable “Commit Before Apply” Workflow
+Right now changes in PreviewPanel apply instantly.
+
+Fix:
+
+Store changes to layer position and size in temporary draft state
+
+Only sync with /stream or the backend after clicking “Save Layout”
+
+This lets me reposition and resize freely before committing
+
+🔧 4. 🔁 Add “Loop Freely” Toggle in Timer UI
+Currently videos only loop via timers.
+
+Fix:
+
+Add a checkbox:
+
+[ ] Loop video continuously (ignore schedule)
+
+When this is enabled:
+
+Hide the interval/duration fields
+
+The video should use native loop + autoplay
+
+🔧 5. 🧲 Snap-to-Grid and Snap-to-Center
+Add snapping logic on drag/resize release:
+
+ts
+Copy
+Edit
+function snapToGrid(value: number, step = 5): number {
+  return Math.round(value / step) * step;
+}
+
+function snapToCenter(value: number, container: number, threshold = 3): number {
+  const center = container / 2;
+  return Math.abs(value - center) < threshold ? center : value;
+}
+Apply this in onDragEnd and onResizeEnd.
+
+🔧 6. 🧼 Clean Up UI Clutter
+The buttons like “Reset,” “Undo,” “Snap to Grid” etc. are duplicated.
+
+Fix:
+
+Remove the old “Layer Tools” section at the bottom
+
+Keep only the row of icons just under the Preview window
+
+Ensure these icons are clearly labeled and easy to click
+
+🔧 7. 🔄 Undo/Reset Support
+Add a layerHistory stack using useRef or useState([])
+
+Push to stack on any drag or resize change
+
+“Undo” button should pop the last layout
+
+“Reset” should return selected layer to:
+
+ts
+Copy
+Edit
+{ x: 0, y: 0, width: 100, height: 100 }
+✅ TL;DR SUMMARY
+
+Problem	Fix
+Elements resize to 0 or explode	Clamp width/height, use delta from cached start
+Drag keeps going after mouse up	Add global mouseup and mouseleave listeners
+No way to “Save” before applying	Buffer changes, apply on “Save Layout”
+No loop mode	Add toggle to loop video freely
+Layout jumpy	Add grid + center snap logic
+UI cluttered	Remove bottom panel, consolidate to top row
+No Undo/Reset	Add layer history + buttons
