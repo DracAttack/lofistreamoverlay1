@@ -15,6 +15,12 @@ import { RotateCcw } from "lucide-react";
 const REFERENCE_WIDTH = 1920;
 const REFERENCE_HEIGHT = 1080;
 
+// ABSOLUTE SIZE CONSTRAINTS (in pixels)
+const MIN_WIDTH_PX = 50;   // Minimum 50px width
+const MIN_HEIGHT_PX = 50;  // Minimum 50px height
+const MAX_WIDTH_PX = 1800; // Maximum 1800px width (within 1920px canvas)
+const MAX_HEIGHT_PX = 900; // Maximum 900px height (within 1080px canvas)
+
 // Utility functions for snapping to grid and center
 function snapToGrid(value: number, step = 5): number {
   return Math.round(value / step) * step;
@@ -31,7 +37,7 @@ function snapToCenter(value: number, containerSize: number, threshold = 3): numb
   return value;
 }
 
-// STRICT size limits to prevent explosion
+// Calculate percentage constraints based on fixed pixel values
 const MIN_WIDTH_PERCENT = 5;  // Minimum 5% of container width
 const MIN_HEIGHT_PERCENT = 5; // Minimum 5% of container height
 const MAX_WIDTH_PERCENT = 90; // Maximum 90% of container width
@@ -229,7 +235,7 @@ export function PreviewPanel() {
     const layer = layers.find(l => l.id === layerId);
     if (!layer) return;
     
-    // Save the layer's starting position and dimensions for history
+    // Save the layer's starting position and dimensions for history/undo
     const originalPosition = { ...layer.position };
     layerHistoryRef.current.push({
       layerId,
@@ -241,41 +247,71 @@ export function PreviewPanel() {
       layerHistoryRef.current = layerHistoryRef.current.slice(-20);
     }
 
-    // Get current dimensions before starting resize
-    // Ensure we use correct values if they're undefined
-    const width = typeof layer.position.width === 'number' ? layer.position.width : 
-                  (layer.position.widthPercent ? (layer.position.widthPercent / 100) * previewRef.current.offsetWidth : 200);
+    const rect = previewRef.current.getBoundingClientRect();
     
-    const height = typeof layer.position.height === 'number' ? layer.position.height : 
-                   (layer.position.heightPercent ? (layer.position.heightPercent / 100) * previewRef.current.offsetHeight : 150);
+    // CRITICAL: We need precise pixel values for the starting size and position
+    // These values will be used as reference points for all delta calculations
     
-    // Ensure we have valid x and y coordinates
-    const x = typeof layer.position.x === 'number' ? layer.position.x : 
-              (layer.position.xPercent ? (layer.position.xPercent / 100) * previewRef.current.offsetWidth : 0);
+    // For width/height, prioritize pixel values but fall back to percentages if needed
+    const width = typeof layer.position.width === 'number' 
+      ? layer.position.width 
+      : (layer.position.widthPercent 
+          ? (layer.position.widthPercent / 100) * rect.width 
+          : Math.min(200, rect.width * 0.3)); // Safe default
     
-    const y = typeof layer.position.y === 'number' ? layer.position.y : 
-              (layer.position.yPercent ? (layer.position.yPercent / 100) * previewRef.current.offsetHeight : 0);
+    const height = typeof layer.position.height === 'number' 
+      ? layer.position.height 
+      : (layer.position.heightPercent 
+          ? (layer.position.heightPercent / 100) * rect.height 
+          : Math.min(150, rect.height * 0.3)); // Safe default
     
-    console.log("Starting resize with dimensions:", { x, y, width, height });
+    // Same for positions
+    const x = typeof layer.position.x === 'number' 
+      ? layer.position.x 
+      : (layer.position.xPercent 
+          ? (layer.position.xPercent / 100) * rect.width 
+          : 0);
     
-    // Save starting dimensions for stable resize calculations
+    const y = typeof layer.position.y === 'number' 
+      ? layer.position.y 
+      : (layer.position.yPercent 
+          ? (layer.position.yPercent / 100) * rect.height 
+          : 0);
+    
+    // IMPORTANT: Apply safety clamps immediately to the starting values
+    // This prevents any possibility of starting with invalid dimensions
+    const safeWidth = Math.max(MIN_WIDTH_PX, Math.min(MAX_WIDTH_PX, width));
+    const safeHeight = Math.max(MIN_HEIGHT_PX, Math.min(MAX_HEIGHT_PX, height));
+    const safeX = Math.max(0, Math.min(rect.width - MIN_WIDTH_PX, x));
+    const safeY = Math.max(0, Math.min(rect.height - MIN_HEIGHT_PX, y));
+    
+    console.log("Starting resize with safe dimensions:", { 
+      x: safeX, 
+      y: safeY, 
+      width: safeWidth, 
+      height: safeHeight,
+      direction
+    });
+    
+    // Cache the starting dimensions and mouse position
+    // This is the critical reference point for all resize calculations
     setResizeStart({
-      width,
-      height,
-      x,
-      y,
-      widthPercent: layer.position.widthPercent || 0,
-      heightPercent: layer.position.heightPercent || 0,
-      xPercent: layer.position.xPercent || 0,
-      yPercent: layer.position.yPercent || 0
+      width: safeWidth,
+      height: safeHeight,
+      x: safeX,
+      y: safeY,
+      // Store percentages for completeness, but we'll mainly use pixel values
+      widthPercent: (safeWidth / rect.width) * 100,
+      heightPercent: (safeHeight / rect.height) * 100,
+      xPercent: (safeX / rect.width) * 100,
+      yPercent: (safeY / rect.height) * 100
     });
     
     setIsResizing(true);
     setResizeDirection(direction);
     setDragTarget(layerId);
 
-    // Set the mouse position at the start of resize
-    const rect = previewRef.current.getBoundingClientRect();
+    // Save the starting mouse position for delta calculations
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     setDragOffset({ x: mouseX, y: mouseY });
@@ -290,141 +326,126 @@ export function PreviewPanel() {
     // Get current preview panel dimensions
     const rect = previewRef.current.getBoundingClientRect();
     
-    // Current mouse position relative to container
+    // IMPORTANT: We retrieve the EXACT dimensions set during startResize
+    // These are used as the base for all calculations to prevent drift
+    const {
+      width: startWidth,
+      height: startHeight,
+      x: startX,
+      y: startY
+    } = resizeStart;
+    
+    // Calculate mouse DELTA from the original position - CRITICAL for stability
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
-    // MUCH SIMPLER APPROACH: Fixed reference dimensions for all calculations
-    // This will prevent any calculations from exploding with percentage-based math
+    // Calculate change in position since drag started
+    // This is the critical part for preventing "explosions"
+    let deltaWidth = 0;
+    let deltaHeight = 0;
+    let deltaX = 0;
+    let deltaY = 0;
     
-    // Initialize newPosition with default values
-    let newPosition = {
-      x: resizeStart.x,
-      y: resizeStart.y,
-      width: resizeStart.width,
-      height: resizeStart.height
-    };
+    // Set up new position values - we'll modify these based on resize direction
+    let newWidth = startWidth;
+    let newHeight = startHeight;
+    let newX = startX;
+    let newY = startY;
     
-    // Minimum/maximum size constraints in pixels
-    const minWidth = MIN_WIDTH_PERCENT * rect.width / 100;
-    const minHeight = MIN_HEIGHT_PERCENT * rect.height / 100;
-    const maxWidth = MAX_WIDTH_PERCENT * rect.width / 100;
-    const maxHeight = MAX_HEIGHT_PERCENT * rect.height / 100;
-    
-    console.log('Resize constraints:', {
-      minWidth, minHeight, maxWidth, maxHeight,
+    console.log('Resize data:', {
       mousePos: { x: mouseX, y: mouseY },
-      resizeStart: resizeStart,
+      startDimensions: { x: startX, y: startY, width: startWidth, height: startHeight },
       direction: resizeDirection
     });
     
-    // Core resizing logic - simplified and based on absolute mouse position
+    // Apply direction-specific resize logic using RELATIVE MOUSE MOVEMENT
     switch (resizeDirection) {
-      case 'se': // Southeast - resize width & height only
-        newPosition = {
-          ...newPosition,
-          width: Math.max(minWidth, Math.min(maxWidth, mouseX - resizeStart.x)),
-          height: Math.max(minHeight, Math.min(maxHeight, mouseY - resizeStart.y))
-        };
+      case 'e': // East (right edge)
+        deltaWidth = mouseX - (startX + startWidth);
+        newWidth = startWidth + deltaWidth;
         break;
         
-      case 'sw': // Southwest - resize width, move x, resize height
-        const rightEdgeSW = resizeStart.x + resizeStart.width;
-        const newWidthSW = Math.max(minWidth, Math.min(maxWidth, rightEdgeSW - mouseX));
-        
-        newPosition = {
-          ...newPosition,
-          x: rightEdgeSW - newWidthSW,
-          width: newWidthSW,
-          height: Math.max(minHeight, Math.min(maxHeight, mouseY - resizeStart.y))
-        };
+      case 'w': // West (left edge)
+        deltaX = mouseX - startX;
+        newX = startX + deltaX;
+        newWidth = startWidth - deltaX;
         break;
         
-      case 'ne': // Northeast - resize width, resize height, move y
-        const bottomEdgeNE = resizeStart.y + resizeStart.height;
-        const newHeightNE = Math.max(minHeight, Math.min(maxHeight, bottomEdgeNE - mouseY));
-        
-        newPosition = {
-          ...newPosition,
-          y: bottomEdgeNE - newHeightNE,
-          width: Math.max(minWidth, Math.min(maxWidth, mouseX - resizeStart.x)),
-          height: newHeightNE
-        };
+      case 's': // South (bottom edge)
+        deltaHeight = mouseY - (startY + startHeight);
+        newHeight = startHeight + deltaHeight;
         break;
         
-      case 'nw': // Northwest - resize width, move x, resize height, move y
-        const rightEdgeNW = resizeStart.x + resizeStart.width;
-        const bottomEdgeNW = resizeStart.y + resizeStart.height;
-        const newWidthNW = Math.max(minWidth, Math.min(maxWidth, rightEdgeNW - mouseX));
-        const newHeightNW = Math.max(minHeight, Math.min(maxHeight, bottomEdgeNW - mouseY));
-        
-        newPosition = {
-          ...newPosition,
-          x: rightEdgeNW - newWidthNW,
-          y: bottomEdgeNW - newHeightNW,
-          width: newWidthNW,
-          height: newHeightNW
-        };
+      case 'n': // North (top edge)
+        deltaY = mouseY - startY;
+        newY = startY + deltaY;
+        newHeight = startHeight - deltaY;
         break;
         
-      case 'e': // East - resize width only
-        newPosition = {
-          ...newPosition,
-          width: Math.max(minWidth, Math.min(maxWidth, mouseX - resizeStart.x))
-        };
+      case 'se': // Southeast (bottom-right corner)
+        deltaWidth = mouseX - (startX + startWidth);
+        deltaHeight = mouseY - (startY + startHeight);
+        newWidth = startWidth + deltaWidth;
+        newHeight = startHeight + deltaHeight;
         break;
         
-      case 'w': // West - resize width and move x
-        const rightEdgeW = resizeStart.x + resizeStart.width;
-        const newWidthW = Math.max(minWidth, Math.min(maxWidth, rightEdgeW - mouseX));
-        
-        newPosition = {
-          ...newPosition,
-          x: rightEdgeW - newWidthW,
-          width: newWidthW
-        };
+      case 'sw': // Southwest (bottom-left corner)
+        deltaX = mouseX - startX;
+        deltaHeight = mouseY - (startY + startHeight);
+        newX = startX + deltaX;
+        newWidth = startWidth - deltaX;
+        newHeight = startHeight + deltaHeight;
         break;
         
-      case 's': // South - resize height only
-        newPosition = {
-          ...newPosition,
-          height: Math.max(minHeight, Math.min(maxHeight, mouseY - resizeStart.y))
-        };
+      case 'ne': // Northeast (top-right corner)
+        deltaWidth = mouseX - (startX + startWidth);
+        deltaY = mouseY - startY;
+        newY = startY + deltaY;
+        newWidth = startWidth + deltaWidth;
+        newHeight = startHeight - deltaY;
         break;
         
-      case 'n': // North - resize height and move y
-        const bottomEdgeN = resizeStart.y + resizeStart.height;
-        const newHeightN = Math.max(minHeight, Math.min(maxHeight, bottomEdgeN - mouseY));
-        
-        newPosition = {
-          ...newPosition,
-          y: bottomEdgeN - newHeightN,
-          height: newHeightN
-        };
+      case 'nw': // Northwest (top-left corner)
+        deltaX = mouseX - startX;
+        deltaY = mouseY - startY;
+        newX = startX + deltaX;
+        newY = startY + deltaY;
+        newWidth = startWidth - deltaX;
+        newHeight = startHeight - deltaY;
         break;
     }
     
-    // Convert to percentages for cross-view compatibility
-    // Critical - percentages must be calculated based on the element's final PIXEL values
-    // against the container's PIXEL dimensions to avoid precision issues
-    const xPercent = (newPosition.x / rect.width) * 100;
-    const yPercent = (newPosition.y / rect.height) * 100;
-    const widthPercent = (newPosition.width / rect.width) * 100;
-    const heightPercent = (newPosition.height / rect.height) * 100;
+    // CRITICAL: Apply hard clamps to prevent any possibility of exploding sizes
+    // Keep sizes within reasonable bounds in pixels (not percentages)
+    newWidth = Math.max(MIN_WIDTH_PX, Math.min(MAX_WIDTH_PX, newWidth));
+    newHeight = Math.max(MIN_HEIGHT_PX, Math.min(MAX_HEIGHT_PX, newHeight));
     
-    // Final position with hard clamps on all values to prevent any possibility of explosion
+    // Prevent elements from being positioned outside the container
+    newX = Math.max(0, Math.min(rect.width - MIN_WIDTH_PX, newX));
+    newY = Math.max(0, Math.min(rect.height - MIN_HEIGHT_PX, newY));
+    
+    // Calculate percentage values based on the CLAMPED pixel values
+    const xPercent = (newX / rect.width) * 100;
+    const yPercent = (newY / rect.height) * 100;
+    const widthPercent = (newWidth / rect.width) * 100;
+    const heightPercent = (newHeight / rect.height) * 100;
+    
+    // Log resize debug info
+    console.log('Final resize values:', {
+      pixels: { x: newX, y: newY, width: newWidth, height: newHeight },
+      percentages: { xPercent, yPercent, widthPercent, heightPercent }
+    });
+    
+    // Create the final position object with both pixel and percentage values
     const constrainedPosition = {
-      // Pixel values - critical for Stream Output
-      x: Math.max(0, Math.min(rect.width - minWidth, newPosition.x)),
-      y: Math.max(0, Math.min(rect.height - minHeight, newPosition.y)),
-      width: Math.max(minWidth, Math.min(maxWidth, newPosition.width)),
-      height: Math.max(minHeight, Math.min(maxHeight, newPosition.height)),
-      
-      // Percentage values - critical for responsive behavior
-      xPercent: Math.max(0, Math.min(90, xPercent)),
-      yPercent: Math.max(0, Math.min(90, yPercent)),
-      widthPercent: Math.max(MIN_WIDTH_PERCENT, Math.min(MAX_WIDTH_PERCENT, widthPercent)),
-      heightPercent: Math.max(MIN_HEIGHT_PERCENT, Math.min(MAX_HEIGHT_PERCENT, heightPercent))
+      x: newX,
+      y: newY,
+      width: newWidth,
+      height: newHeight,
+      xPercent,
+      yPercent,
+      widthPercent,
+      heightPercent
     };
     
     // Update layers with new dimensions

@@ -1,0 +1,83 @@
+🔍 LOG CONFIRMATION SUMMARY:
+The logs restate the following known (and still unresolved) issues:
+
+❗Resizing Problems
+Values jump erratically (0px → 8000px)
+
+Likely because the drag/resize handler is not referencing cached original sizes
+
+No min/max clamping in effect yet
+
+❗Dragging Bug
+isDragging stays true after release
+
+Missing global mouseup and mouseleave to end it cleanly
+
+❗Changes apply instantly
+No “draft state” for layout changes
+
+Still pushing updates to /stream in real-time
+
+❗UI Controls still messy
+Reset/undo/grid snap appear in multiple places
+
+✅ NEXT MOVE: Instruct Replit AI to focus only on resizing bug now, with precision
+Here’s what you should tell it next, assuming this log didn’t lead to success:
+
+🛠️ NEXT REPLIT INSTRUCTION: FIX RESIZE ONLY
+🧠 CURRENT SITUATION:
+Resizing layers in PreviewPanel.tsx causes huge jumps in size (0px or 8000px), instead of smooth scale changes.
+
+❗ROOT PROBLEM:
+Resize is not using a cached baseline
+
+You're calculating new width/height from the current mouse position directly, which causes instability
+
+There is no clamping to enforce min/max bounds
+
+✅ REQUIRED FIXES:
+🔧 1. Add resize start cache
+Inside PreviewPanel.tsx, store starting size and mouse position:
+
+ts
+Copy
+Edit
+const [resizeStart, setResizeStart] = useState({
+  startX: 0,
+  startY: 0,
+  startWidth: 0,
+  startHeight: 0
+});
+Then when resizing begins:
+
+ts
+Copy
+Edit
+setResizeStart({
+  startX: e.clientX,
+  startY: e.clientY,
+  startWidth: currentLayer.width,
+  startHeight: currentLayer.height
+});
+🔧 2. Calculate deltas from the original size
+ts
+Copy
+Edit
+const deltaX = e.clientX - resizeStart.startX;
+const deltaY = e.clientY - resizeStart.startY;
+
+const newWidth = resizeStart.startWidth + deltaX;
+const newHeight = resizeStart.startHeight + deltaY;
+🔧 3. Clamp to avoid 0 or 8000
+ts
+Copy
+Edit
+const clampedWidth = Math.max(50, Math.min(2000, newWidth));
+const clampedHeight = Math.max(50, Math.min(2000, newHeight));
+🔧 4. Update live preview from clamped values
+Update the state only with clamped size.
+
+TL;DR:
+Stop calculating width/height directly from live mouse position.
+Instead, cache the size on drag start, calculate delta, and clamp output.
+
